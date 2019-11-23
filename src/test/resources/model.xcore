@@ -1,0 +1,16 @@
+@GenModel(
+    bundleManifest="false",
+    modelDirectory="gitdb/src/test/java-gen",
+    rootExtendsClass="org.eclipse.emf.ecore.impl.MinimalEObjectImpl",
+    complianceLevel="7.0"
+)
+package ru.neoflex.meta.test
+
+class Group {
+    String name
+}
+
+class User {
+    String name
+    refers Group group
+}
