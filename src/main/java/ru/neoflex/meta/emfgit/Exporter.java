@@ -1,7 +1,8 @@
-package ru.neoflex.meta.gitdb;
+package ru.neoflex.meta.emfgit;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.eclipse.emf.common.util.EList;
@@ -11,10 +12,7 @@ import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.ResourceSet;
 import org.eclipse.emf.ecore.util.EcoreUtil;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -31,7 +29,7 @@ public class Exporter {
     public static final String FEATURES = "features";
     public static final String FRAGMENT = "fragment";
     public static final String NAME = "name";
-    public static final String JSON = ".json";
+    public static final String XMI = ".xmi";
     public static final String REFS = ".refs";
 
     Database database;
@@ -41,7 +39,7 @@ public class Exporter {
     }
 
     public ObjectNode objectToTree(EObject eObject) {
-        ObjectNode objectNode = database.getMapper().createObjectNode();
+        ObjectNode objectNode = new ObjectMapper().createObjectNode();
         EObject rootContainer = EcoreUtil.getRootContainer(eObject);
         String fragment = EcoreUtil.getRelativeURIFragmentPath(rootContainer, eObject);
         objectNode.put("eClass", eClass2String(rootContainer.eClass()));
@@ -70,17 +68,18 @@ public class Exporter {
                 feature.put(FRAGMENT, fragment);
             }
         }
-        return database.getMapper().writerWithDefaultPrettyPrinter().writeValueAsBytes(objectNode);
+        return new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsBytes(objectNode);
     }
 
-    public byte[] exportEObjectWithoutExternalRefs(EObject eObject) throws JsonProcessingException {
+    public byte[] exportEObjectWithoutExternalRefs(EObject eObject) throws IOException {
         ResourceSet resourceSet = database.createResourceSet();
         Resource resource = resourceSet.createResource(eObject.eResource().getURI());
         EObject copyObject = EcoreUtil.copy(eObject);
         resource.getContents().add(copyObject);
         unsetExternalReferences(copyObject);
-        JsonNode contentNode = database.getMapper().valueToTree(resource);
-        return database.getMapper().writerWithDefaultPrettyPrinter().writeValueAsBytes(contentNode);
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        resource.save(os, null);
+        return os.toByteArray();
     }
 
     public void unsetExternalReferences(EObject eObject) {
@@ -119,7 +118,7 @@ public class Exporter {
             if (name != null && name.length() > 0) {
                 byte[] bytes = exportEObjectWithoutExternalRefs(eObject);
                 String fileName = ePackage.getName() + "_" + eClass.getName() + "_" + name;
-                Path filePath = path.resolve(fileName + JSON);
+                Path filePath = path.resolve(fileName + XMI);
                 Files.createDirectories(filePath.getParent());
                 Files.write(filePath, bytes);
                 byte[] refsBytes = exportExternalRefs(eObject);
@@ -204,7 +203,7 @@ public class Exporter {
                 if (name != null && name.length() > 0) {
                     String fileName = ePackage.getName() + "_" + eClass.getName() + "_" + name;
                     byte[] bytes = exportEObjectWithoutExternalRefs(eObject);
-                    ZipEntry zipEntry = new ZipEntry(fileName + JSON);
+                    ZipEntry zipEntry = new ZipEntry(fileName + XMI);
                     zipOutputStream.putNextEntry(zipEntry);
                     zipOutputStream.write(bytes);
                     zipOutputStream.closeEntry();
@@ -225,7 +224,7 @@ public class Exporter {
                     while ((length = zipInputStream.read(buffer)) > 0) {
                         outputStream.write(buffer, 0, length);
                     }
-                    if (zipEntry.getName().endsWith(JSON)) {
+                    if (zipEntry.getName().endsWith(XMI)) {
                         importEObject(outputStream.toByteArray(), tx);
                         ++entityCount;
                     }
@@ -264,7 +263,7 @@ public class Exporter {
     }
 
     public void importPath(Path path, Transaction tx) throws IOException {
-        List<Path> jsonPaths = Files.walk(path).filter(Files::isRegularFile).filter(file -> file.getFileName().toString().endsWith(JSON)).collect(Collectors.toList());
+        List<Path> jsonPaths = Files.walk(path).filter(Files::isRegularFile).filter(file -> file.getFileName().toString().endsWith(XMI)).collect(Collectors.toList());
         for (Path jsonPath : jsonPaths) {
             byte[] content = Files.readAllBytes(jsonPath);
             importEObject(content, tx);
@@ -278,8 +277,7 @@ public class Exporter {
 
     public EObject importEObject(byte[] image, Transaction tx) throws IOException {
         Resource resource = database.createResource(tx, null, null);
-        JsonNode objectNode = database.getMapper().readTree(image);
-        database.loadResource(objectNode, resource);
+        resource.load(new ByteArrayInputStream(image), null);
         EObject eObject = resource.getContents().get(0);
         EClass eClass = eObject.eClass();
         EStructuralFeature nameFeature = database.getQNameFeature(eClass);
@@ -297,7 +295,7 @@ public class Exporter {
     }
 
     public EObject importExternalRefs(byte[] refs, Transaction tx) throws IOException {
-        ObjectNode objectNode = (ObjectNode) database.getMapper().readTree(refs);
+        ObjectNode objectNode = (ObjectNode) new ObjectMapper().readTree(refs);
         EObject eObject = treeToObject(objectNode, tx);
         unsetExternalReferences(eObject);
         ArrayNode externalReferences = objectNode.withArray(EXTERNAL_REFERENCES);

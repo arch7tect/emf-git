@@ -1,4 +1,4 @@
-package ru.neoflex.meta.gitdb;
+package ru.neoflex.meta.emfgit;
 
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.ResourceSet;
@@ -17,8 +17,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 
-import static ru.neoflex.meta.gitdb.Database.TYPE_NAME_IDX;
-import static ru.neoflex.meta.gitdb.Database.IDX_PATH;
+import static ru.neoflex.meta.emfgit.Database.TYPE_NAME_IDX;
+import static ru.neoflex.meta.emfgit.Database.IDX_PATH;
 
 public class DatabaseTests extends TestBase {
     @Before

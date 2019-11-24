@@ -1,4 +1,4 @@
-package ru.neoflex.meta.gitdb;
+package ru.neoflex.meta.emfgit;
 
 import com.beijunyi.parallelgit.filesystem.GitFileSystem;
 import com.beijunyi.parallelgit.filesystem.GitPath;
@@ -6,32 +6,22 @@ import com.beijunyi.parallelgit.utils.BranchUtils;
 import com.beijunyi.parallelgit.utils.RepositoryUtils;
 import com.beijunyi.parallelgit.utils.exceptions.RefUpdateLockFailureException;
 import com.beijunyi.parallelgit.utils.exceptions.RefUpdateRejectedException;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.cfg.ContextAttributes;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.*;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.ResourceSet;
 import org.eclipse.emf.ecore.resource.impl.ResourceSetImpl;
 import org.eclipse.emf.ecore.util.EcoreUtil;
+import org.eclipse.emf.ecore.xmi.XMIResource;
+import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
+import org.eclipse.emf.ecore.xmi.impl.XMIResourceImpl;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Repository;
-import org.emfjson.jackson.annotations.EcoreIdentityInfo;
-import org.emfjson.jackson.annotations.EcoreTypeInfo;
-import org.emfjson.jackson.databind.EMFContext;
-import org.emfjson.jackson.module.EMFModule;
-import org.emfjson.jackson.resource.JsonResourceFactory;
-import org.emfjson.jackson.utils.ValueWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.Closeable;
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -41,7 +31,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS;
 import static org.eclipse.jgit.lib.Constants.DOT_GIT;
 
 public class Database implements Closeable {
@@ -54,7 +43,6 @@ public class Database implements Closeable {
     public static final String QNAME = "name";
     public static final String GITDB = "gitdb";
     private final Repository repository;
-    private ObjectMapper mapper;
     private List<EPackage> packages;
     private Map<String, Index> indexes = new HashMap<>();
     private Events events = new Events();
@@ -74,7 +62,6 @@ public class Database implements Closeable {
     public Database(String repoPath, List<EPackage> packages) throws IOException, GitAPIException {
         this.repoName = new File(repoPath).getName();
         this.repository = openRepository(repoPath);
-        this.mapper = createMapper();
         this.packages = packages;
         preCalcDescendants();
         createTypeNameIndex();
@@ -192,19 +179,7 @@ public class Database implements Closeable {
     }
 
     public Resource loadResource(byte[] content, Resource resource) throws IOException {
-        JsonNode node = mapper.readTree(content);
-        return loadResource(node, resource);
-    }
-
-    public Resource loadResource(JsonNode node, Resource resource) throws IOException {
-        ContextAttributes attributes = ContextAttributes
-                .getEmpty()
-                .withSharedAttribute("resourceSet", resource.getResourceSet())
-                .withSharedAttribute("resource", resource);
-        mapper.reader()
-                .with(attributes)
-                .withValueToUpdate(resource)
-                .treeToValue(node, Resource.class);
+        ((XMIResourceImpl) resource).doLoad(new ByteArrayInputStream(content), null);
         return resource;
     }
 
@@ -245,7 +220,7 @@ public class Database implements Closeable {
         }
         resourceSet.getResourceFactoryRegistry()
                 .getExtensionToFactoryMap()
-                .put("*", new JsonResourceFactory());
+                .put("*", new XMIResourceFactoryImpl());
         return resourceSet;
     }
 
@@ -255,31 +230,6 @@ public class Database implements Closeable {
                 .getURIHandlers()
                 .add(0, new GitHandler(tx));
         return resourceSet;
-    }
-
-    public static EMFModule createModule() {
-        EMFModule emfModule = new EMFModule();
-        emfModule.configure(EMFModule.Feature.OPTION_USE_ID, true);
-        emfModule.setTypeInfo(new EcoreTypeInfo("eClass"));
-        emfModule.setIdentityInfo(new EcoreIdentityInfo("_id",
-                new ValueWriter<EObject, Object>() {
-                    @Override
-                    public Object writeValue(EObject eObject, SerializerProvider context) {
-                        URI eObjectURI = EMFContext.getURI(context, eObject);
-                        if (eObjectURI == null) {
-                            return null;
-                        }
-                        return eObjectURI.fragment();
-                    }
-                }));
-        return emfModule;
-    }
-
-    public static ObjectMapper createMapper() {
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.registerModule(createModule());
-        mapper.configure(WRITE_DATES_AS_TIMESTAMPS, false);
-        return mapper;
     }
 
     public String getRev(URI uri) throws IOException {
@@ -321,9 +271,10 @@ public class Database implements Closeable {
         return checkAndGetId(resource.getURI());
     }
 
-    public byte[] getResourceContent(Resource resource) throws JsonProcessingException {
-        JsonNode contentNode = mapper.valueToTree(resource);
-        return mapper.writeValueAsBytes(contentNode);
+    public byte[] getResourceContent(Resource resource) throws IOException {
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        resource.save(os, null);
+        return os.toByteArray();
     }
 
     public List<Resource> getDependentResources(Resource resource, Transaction tx) throws IOException {
@@ -412,10 +363,6 @@ public class Database implements Closeable {
     public Resource loadResource(String id, Transaction tx) throws IOException {
         ResourceSet resourceSet = createResourceSet(tx);
         return loadResource(resourceSet, id);
-    }
-
-    public ObjectMapper getMapper() {
-        return mapper;
     }
 
     public List<EPackage> getPackages() {

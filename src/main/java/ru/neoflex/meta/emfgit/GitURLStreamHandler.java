@@ -1,4 +1,4 @@
-package ru.neoflex.meta.gitdb;
+package ru.neoflex.meta.emfgit;
 
 import com.beijunyi.parallelgit.filesystem.GitFileSystem;
 import com.beijunyi.parallelgit.filesystem.GitFileSystemProvider;

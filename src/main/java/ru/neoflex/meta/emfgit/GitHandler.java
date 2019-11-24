@@ -1,14 +1,19 @@
-package ru.neoflex.meta.gitdb;
+package ru.neoflex.meta.emfgit;
 
+import com.beijunyi.parallelgit.filesystem.GitPath;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.impl.URIHandlerImpl;
+import org.eclipse.jgit.lib.ObjectId;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.List;
+import java.nio.file.Files;
+import java.nio.file.OpenOption;
 import java.util.Map;
+
+import static java.nio.file.StandardOpenOption.*;
 
 public class GitHandler extends URIHandlerImpl {
     private Transaction transaction;
@@ -24,11 +29,12 @@ public class GitHandler extends URIHandlerImpl {
 
     public void delete(URI uri, Map<?, ?> options) throws IOException {
         Database db = transaction.getDatabase();
+        Resource resource = db.createResourceSet(transaction).getResource(uri, true);
         String id = db.getId(uri);
         String rev = db.getRev(uri);
         EntityId entityId = new EntityId(id, rev);
-        Entity old = transaction.load(entityId);
-        Resource resource = db.entityToResource(transaction, old);
+//        Entity old = transaction.load(entityId);
+//        Resource resource = db.entityToResource(transaction, old);
         db.getEvents().fireBeforeDelete(resource, transaction);
         transaction.delete(entityId);
     }

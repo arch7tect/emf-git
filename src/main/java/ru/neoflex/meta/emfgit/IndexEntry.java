@@ -1,4 +1,4 @@
-package ru.neoflex.meta.gitdb;
+package ru.neoflex.meta.emfgit;
 
 public class IndexEntry {
     private String[] path;

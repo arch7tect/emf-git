@@ -1,4 +1,4 @@
-package ru.neoflex.meta.gitdb;
+package ru.neoflex.meta.emfgit;
 
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.ResourceSet;
@@ -10,8 +10,6 @@ import ru.neoflex.meta.test.TestFactory;
 import ru.neoflex.meta.test.TestPackage;
 import ru.neoflex.meta.test.User;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 

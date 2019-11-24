@@ -1,16 +1,18 @@
-package ru.neoflex.meta.gitdb;
+package ru.neoflex.meta.emfgit;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.EClass;
+import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.ResourceSet;
 import org.eclipse.emf.ecore.util.EcoreUtil;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.util.*;
 
@@ -63,15 +65,14 @@ public class Finder {
         long idsLoadedTime = System.currentTimeMillis();
         idsLoaded = ids.size();
         resourceSet = database.createResourceSet(tx);
-        ObjectMapper mapper = new ObjectMapper();
         int startIndex = skip <= 0 ? 0 : min(skip, ids.size());
         int length = limit <= 0 ? ids.size() - startIndex : min(limit, ids.size() - startIndex);
         for (EntityId entityId: ids.subList(startIndex, startIndex + length)) {
             Entity entity = tx.load(entityId);
-            ObjectNode object = (ObjectNode) mapper.readTree(entity.getContent());
-            if (match(entity, object, selector)) {
-                Resource resource = resourceSet.createResource(database.createURI(entity.getId(), entity.getRev()));
-                database.loadResource(object, resource);
+            Resource resource = database.createResourceSet(tx).createResource(database.createURI(entity.getId(), entity.getRev()));
+            database.loadResource(entity.getContent(), resource);
+            if (match(entity, resource.getContents().get(0), selector)) {
+                resourceSet.getResources().add(resource);
             }
         }
         resLoaded = length;
@@ -81,7 +82,7 @@ public class Finder {
         return this;
     }
 
-    private boolean match(EntityId entityId, ObjectNode object, ObjectNode query) throws IOException {
+    private boolean match(EntityId entityId, EObject object, ObjectNode query) throws IOException {
         JsonNode _id = query.get("id");
         if (_id != null && !Objects.equals(_id.textValue(), entityId.getId())) {
             return false;
@@ -99,7 +100,7 @@ public class Finder {
         return true;
     }
 
-    private boolean matchOp(String op, JsonNode object, JsonNode query) {
+    private boolean matchOp(String op, Object object, JsonNode query) {
         if ("$and".equals(op)) {
             return matchAnd(object, query);
         }
@@ -134,19 +135,19 @@ public class Finder {
             return matchGe(object, query);
         }
         if ("$eq".equals(op)) {
-            return object.equals(query);
+            return object.toString().equals(query.asText());
         }
         if ("$ne".equals(op)) {
             return !object.equals(query);
         }
         if ("$exists".equals(op)) {
-            return query.asBoolean() == (object != null && !object.isNull() && !object.isMissingNode());
+            return query.asBoolean() == (object != null);
         }
         if ("$size".equals(op)) {
             return matchSize(object, query);
         }
         if ("$type".equals(op)) {
-            return query.asText().equals(object.getNodeType().name());
+            return query.asText().equals(object.getClass().getSimpleName());
         }
         if ("$in".equals(op)) {
             return matchIn(object, query);
@@ -155,48 +156,48 @@ public class Finder {
             return !matchIn(object, query);
         }
         if ("$regex".equals(op)) {
-            return object.asText().matches(query.asText());
+            return object.toString().matches(query.asText());
         }
         return false;
     }
 
-    private int compare(JsonNode object, JsonNode query) {
-        if (object.isNumber() && query.isNumber()) {
-            return object.decimalValue().compareTo(query.decimalValue());
+    private int compare(Object object, JsonNode query) {
+        if (object instanceof Number && query.isNumber()) {
+            return new BigDecimal(object.toString()).compareTo(query.decimalValue());
         }
-        if (object.isTextual() && query.isTextual()) {
-            return object.asText().compareTo(query.asText());
+        if (object instanceof String && query.isTextual()) {
+            return ((String) object).compareTo(query.asText());
         }
-        if (object.isBoolean() && query.isBoolean()) {
-            return new Boolean(object.asBoolean()).compareTo(query.asBoolean());
+        if (object instanceof Boolean && query.isBoolean()) {
+            return new Boolean((Boolean) object).compareTo(query.asBoolean());
         }
         throw new IllegalArgumentException("Can't compare values: " + object.toString() + ", " + query.toString());
     }
 
-    private boolean matchSize(JsonNode object, JsonNode query) {
-        return object.isArray() && object.size() == query.asInt();
+    private boolean matchSize(Object object, JsonNode query) {
+        return object instanceof List && ((List) object).size() == query.asInt();
     }
-    private boolean matchLt(JsonNode object, JsonNode query) {
+    private boolean matchLt(Object object, JsonNode query) {
         return compare(object, query) < 0;
     }
 
-    private boolean matchLe(JsonNode object, JsonNode query) {
+    private boolean matchLe(Object object, JsonNode query) {
         return compare(object, query) <= 0;
     }
 
-    private boolean matchGt(JsonNode object, JsonNode query) {
+    private boolean matchGt(Object object, JsonNode query) {
         return compare(object, query) > 0;
     }
 
-    private boolean matchGe(JsonNode object, JsonNode query) {
+    private boolean matchGe(Object object, JsonNode query) {
         return compare(object, query) >= 0;
     }
 
-    private boolean matchElemMatch(JsonNode object, JsonNode query) {
-        if (!object.isArray()) {
+    private boolean matchElemMatch(Object object, JsonNode query) {
+        if (!(object instanceof List)) {
             return false;
         }
-        for (JsonNode objectNode: object) {
+        for (Object objectNode: (List) object) {
             if (matchNodes(objectNode, query)) {
                 return true;
             }
@@ -204,11 +205,11 @@ public class Finder {
         return false;
     }
 
-    private boolean matchAllMatch(JsonNode object, JsonNode query) {
-        if (!object.isArray()) {
+    private boolean matchAllMatch(Object object, JsonNode query) {
+        if (!(object instanceof List)) {
             return false;
         }
-        for (JsonNode objectNode: object) {
+        for (Object objectNode: (List) object) {
             if (!matchNodes(objectNode, query)) {
                 return false;
             }
@@ -216,12 +217,12 @@ public class Finder {
         return true;
     }
 
-    private boolean matchNot(JsonNode object, JsonNode query) {
+    private boolean matchNot(Object object, JsonNode query) {
         return !matchNodes(object, query);
     }
 
-    private boolean matchAll(JsonNode object, JsonNode query) {
-        if (!object.isArray()) {
+    private boolean matchAll(Object object, JsonNode query) {
+        if (!(object instanceof List)) {
             return false;
         }
         if (!query.isArray()) {
@@ -229,7 +230,7 @@ public class Finder {
         }
         for (JsonNode queryNode: query) {
             boolean found = false;
-            for (JsonNode objectNode: object) {
+            for (Object objectNode: (List) object) {
                 if (objectNode.equals(queryNode)) {
                     found = true;
                     break;
@@ -242,7 +243,7 @@ public class Finder {
         return true;
     }
 
-    private boolean matchNor(JsonNode object, JsonNode query) {
+    private boolean matchNor(Object object, JsonNode query) {
         if (!query.isArray()) {
             return false;
         }
@@ -254,26 +255,26 @@ public class Finder {
         return true;
     }
 
-    private boolean matchIn(JsonNode object, JsonNode query) {
+    private boolean matchIn(Object object, JsonNode query) {
         if (!query.isArray()) {
             return false;
         }
         for (JsonNode node: query) {
-            if (object.equals(node)) {
+            if (object.toString().equals(node.asText())) {
                 return true;
             }
         }
         return false;
     }
 
-    private boolean matchNodes(JsonNode object, JsonNode query) {
-        if (object == null || object.isNull()) {
+    private boolean matchNodes(Object object, JsonNode query) {
+        if (object == null) {
             return query == null || query.isNull();
         }
         if (query == null) {
             return true;
         }
-        if (object.isObject() || object.isArray()) {
+        if (object instanceof EObject || object instanceof List) {
             if (!query.isObject()) {
                 return false;
             }
@@ -282,14 +283,14 @@ public class Finder {
         return matchPlain(object, query);
     }
 
-    private boolean matchPlain(JsonNode object, JsonNode query) {
+    private boolean matchPlain(Object object, JsonNode query) {
         if (query.isObject()) {
             return matchFields(object, query);
         }
-        return object.equals(query);
+        return object.toString().equals(query.asText());
     }
 
-    private boolean matchAnd(JsonNode object, JsonNode query) {
+    private boolean matchAnd(Object object, JsonNode query) {
         if (!query.isArray()) {
             return false;
         }
@@ -301,7 +302,19 @@ public class Finder {
         return true;
     }
 
-    private boolean matchFields(JsonNode object, JsonNode query) {
+    private Object getField(Object object, String name) {
+        if (object instanceof EObject) {
+            EObject eObject = (EObject) object;
+            EClass eClass = eObject.eClass();
+            EStructuralFeature sf = eClass.getEStructuralFeature(name);
+            if (sf != null) {
+                return eObject.eGet(sf);
+            }
+        }
+        return null;
+    }
+
+    private boolean matchFields(Object object, JsonNode query) {
         if (!query.isObject()) {
             return false;
         }
@@ -309,9 +322,18 @@ public class Finder {
             String fieldName = it.next();
             JsonNode queryNode = query.get(fieldName);
             if (fieldName.startsWith("$")) {
-                return matchOp(fieldName, object, queryNode);
+                if (!matchOp(fieldName, object, queryNode)) {
+                    return false;
+                }
+                continue;
             }
-            JsonNode objectNode = object.get(unescape(fieldName));
+            if (fieldName.equals("eClass")) {
+                if (!EcoreUtil.getURI(((EObject) object).eClass()).toString().equals(queryNode.asText())) {
+                    return false;
+                }
+                continue;
+            }
+            Object objectNode = getField(object, unescape(fieldName));
             if (!matchNodes(objectNode, queryNode)) {
                 return false;
             }
@@ -319,7 +341,7 @@ public class Finder {
         return true;
     }
 
-    private boolean matchOr(JsonNode object, JsonNode query) {
+    private boolean matchOr(Object object, JsonNode query) {
         if (!query.isArray()) {
             return false;
         }

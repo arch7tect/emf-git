@@ -5,7 +5,7 @@
     <groupId>ru.neoflex.meta</groupId>
     <artifactId>emf-git</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>gitdb</name>
+    <name>emf-git</name>
     <description>Git storage for EMF objects</description>
 
     <properties>
@@ -14,6 +14,7 @@
         <maven.compiler.target>1.8</maven.compiler.target>
         <maven.compiler.fork>true</maven.compiler.fork>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <jackson-version>2.10.0</jackson-version>
         <emf-version>2.18.0</emf-version>
         <emf-xmi-version>2.16.0</emf-xmi-version>
         <emf-common-version>2.16.0</emf-common-version>
@@ -32,20 +33,31 @@
             <version>3.0.2</version>
         </dependency>
         <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-core</artifactId>
-            <version>2.9.9</version>
+            <groupId>org.eclipse.emf</groupId>
+            <artifactId>org.eclipse.emf.common</artifactId>
+            <version>${emf-common-version}</version>
         </dependency>
+
         <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>2.9.9</version>
+            <groupId>org.eclipse.emf</groupId>
+            <artifactId>org.eclipse.emf.ecore</artifactId>
+            <version>${emf-version}</version>
         </dependency>
         <dependency>
             <groupId>org.eclipse.emf</groupId>
             <artifactId>org.eclipse.emf.ecore.xcore.lib</artifactId>
             <version>${ecore-xcore-lib-version}</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.eclipse.emf</groupId>
+            <artifactId>org.eclipse.emf.ecore.xmi</artifactId>
+            <version>${emf-xmi-version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson-version}</version>
         </dependency>
         <dependency>
             <groupId>org.eclipse.jgit</groupId>

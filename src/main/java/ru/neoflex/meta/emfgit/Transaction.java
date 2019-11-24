@@ -1,4 +1,4 @@
-package ru.neoflex.meta.gitdb;
+package ru.neoflex.meta.emfgit;
 
 import com.beijunyi.parallelgit.filesystem.Gfs;
 import com.beijunyi.parallelgit.filesystem.GitFileSystem;
@@ -22,7 +22,7 @@ import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
-import static ru.neoflex.meta.gitdb.Database.IDS_PATH;
+import static ru.neoflex.meta.emfgit.Database.IDS_PATH;
 
 public class Transaction implements Closeable {
     private Database database;

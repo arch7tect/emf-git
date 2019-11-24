@@ -1,4 +1,4 @@
-package ru.neoflex.meta.gitdb;
+package ru.neoflex.meta.emfgit;
 
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.ResourceSet;
@@ -7,7 +7,6 @@ import org.junit.Before;
 import org.junit.Test;
 import ru.neoflex.meta.test.Group;
 import ru.neoflex.meta.test.TestFactory;
-import ru.neoflex.meta.test.TestPackage;
 import ru.neoflex.meta.test.User;
 
 import java.nio.file.Files;

@@ -1,4 +1,4 @@
-package ru.neoflex.meta.gitdb;
+package ru.neoflex.meta.emfgit;
 
 import org.eclipse.emf.ecore.EPackage;
 import org.eclipse.jgit.api.errors.GitAPIException;
@@ -9,7 +9,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 
 public class TestBase {
-    public static final String GITDB = "testgitdb";
+    public static final String GITDB = "test-emf-git";
     Database database;
 
     public static boolean deleteDirectory(File directoryToBeDeleted) {

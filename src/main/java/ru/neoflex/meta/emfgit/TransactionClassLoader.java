@@ -1,8 +1,7 @@
-package ru.neoflex.meta.gitdb;
+package ru.neoflex.meta.emfgit;
 
 import java.io.IOException;
 import java.net.URL;
-import java.net.URLStreamHandler;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;

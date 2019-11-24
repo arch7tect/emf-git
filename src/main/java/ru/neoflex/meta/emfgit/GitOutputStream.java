@@ -1,8 +1,9 @@
-package ru.neoflex.meta.gitdb;
+package ru.neoflex.meta.emfgit;
 
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.URIConverter;
+import org.eclipse.emf.ecore.xmi.impl.XMIResourceImpl;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -33,7 +34,9 @@ public class GitOutputStream extends ByteArrayOutputStream implements URIConvert
             oldResource = db.entityToResource(transaction, oldEntity);
         }
         db.getEvents().fireBeforeSave(oldResource, resource, transaction);
-        byte[] content = db.getResourceContent(resource);
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        ((XMIResourceImpl) resource).doSave(os, options);
+        byte[] content = os.toByteArray();
         Entity entity = new Entity(id, rev, content);
         if (isNew) {
             transaction.create(entity);
