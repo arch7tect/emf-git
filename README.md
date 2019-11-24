@@ -168,7 +168,7 @@ try(Transaction tx = database.createTransaction("master", Transaction.LockType.R
     Assert.assertEquals(content, new String(data));
 }
 ```
-# Concurency/locking
+# Concurrency/locking
 Where are 3 types of transactions:
 * READ - works with the version of the database that was current at the time the transaction was created; 
   commit is prohibited
@@ -181,7 +181,19 @@ Where are 3 types of transactions:
   inprocess locking mechanisms are used, 
   so external programs working with the same database may conflict with this transaction;
   for reliability, you must use the Database.inTransaction(...) mechanism
-  
+  ```java
+database.inTransaction("users", Transaction.LockType.WRITE, tx -> {
+    Resource groupResource = database.loadResource(groupId, tx);
+    Group group = (Group) groupResource.getContents().get(0);
+    Resource userResource = database.loadResource(userId, tx);
+    User user = (User) userResource.getContents().get(0);
+    user.setName(name);
+    user.setGroup(group);
+    userResource.save(null);
+    tx.commit("User " + name + " updated", "orlov", "");
+    return null;
+});
+```
 # Libraries used
 * the gorgeous library https://github.com/beijunyi/ParallelGit 
   has been included with minor modifications (uri format in particular)
