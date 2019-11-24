@@ -181,7 +181,7 @@ Where are 3 types of transactions:
   inprocess locking mechanisms are used, 
   so external programs working with the same database may conflict with this transaction;
   for reliability, you must use the Database.inTransaction(...) mechanism
-  ```java
+ ```java
 database.inTransaction("users", Transaction.LockType.WRITE, tx -> {
     Resource groupResource = database.loadResource(groupId, tx);
     Group group = (Group) groupResource.getContents().get(0);
