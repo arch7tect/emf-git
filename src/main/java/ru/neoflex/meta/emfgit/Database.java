@@ -13,8 +13,10 @@ import org.eclipse.emf.ecore.resource.ResourceSet;
 import org.eclipse.emf.ecore.resource.impl.ResourceSetImpl;
 import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.emf.ecore.xmi.XMIResource;
+import org.eclipse.emf.ecore.xmi.XMLParserPool;
 import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
 import org.eclipse.emf.ecore.xmi.impl.XMIResourceImpl;
+import org.eclipse.emf.ecore.xmi.impl.XMLParserPoolImpl;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Repository;
@@ -33,6 +35,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.eclipse.emf.ecore.xmi.XMLResource.*;
 import static org.eclipse.jgit.lib.Constants.DOT_GIT;
 
 public class Database implements Closeable {
@@ -52,6 +55,7 @@ public class Database implements Closeable {
     private Function<EClass, EStructuralFeature> qualifiedNameDelegate;
     private Map<EClass, List<EClass>> descendants = new HashMap<>();
     private String repoName;
+    private XMLParserPool xmlParserPool = new XMLParserPoolImpl();
 
     {
         try {
@@ -222,7 +226,19 @@ public class Database implements Closeable {
         }
         resourceSet.getResourceFactoryRegistry()
                 .getExtensionToFactoryMap()
-                .put("*", new XMIResourceFactoryImpl());
+                .put("*", new XMIResourceFactoryImpl() {
+                    @Override
+                    public Resource createResource(URI uri) {
+                        XMIResourceImpl resource = new XMIResourceImpl(uri);
+                        resource.getDefaultSaveOptions().put(OPTION_ENCODING, "UTF-8");
+                        resource.getDefaultSaveOptions().put(OPTION_CONFIGURATION_CACHE, true);
+                        resource.getDefaultLoadOptions().put(OPTION_USE_PARSER_POOL, xmlParserPool);
+                        resource.getDefaultLoadOptions().put(OPTION_USE_DEPRECATED_METHODS, false);
+                        resource.getDefaultLoadOptions().put(OPTION_DEFER_ATTACHMENT, true);
+                        resource.getDefaultLoadOptions().put(OPTION_DEFER_IDREF_RESOLUTION, true);
+                        return resource;
+                    }
+                });
         return resourceSet;
     }
 

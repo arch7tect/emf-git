@@ -128,20 +128,20 @@ public class Transaction implements Closeable {
         return current.getObjectId(false);
     }
 
-//    public static String getRandomId(int length) {
-//        byte[] bytes = new byte[length];
-//        return hex(bytes);
-//    }
-
-    public static String getUUID() {
-        byte[] bytes = new byte[16];
-        EcoreUtil.generateUUID(bytes);
+    public static String getRandomId(int length) {
+        byte[] bytes = new byte[length];
+        new Random().nextBytes(bytes);
         return hex(bytes);
     }
 
+//    public static String getUUID() {
+//        byte[] bytes = new byte[16];
+//        EcoreUtil.generateUUID(bytes);
+//        return hex(bytes);
+//    }
+
     private static final char[] HEX_ARRAY = "0123456789ABCDEF".toCharArray();
     private static String hex(byte[] bytes) {
-        new Random().nextBytes(bytes);
         char[] hexChars = new char[bytes.length * 2];
         for (int j = 0; j < bytes.length; j++) {
             int v = bytes[j] & 0xFF;
@@ -152,8 +152,8 @@ public class Transaction implements Closeable {
     }
 
     public Entity create(Entity entity) throws IOException {
-        String id = getUUID();
-//        String id = getRandomId(16);
+//        String id = getUUID();
+        String id = getRandomId(16);
         entity.setId(id);
         GitPath path = getIdPath(entity);
         Files.createDirectories(path.getParent());
