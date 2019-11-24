@@ -168,6 +168,20 @@ try(Transaction tx = database.createTransaction("master", Transaction.LockType.R
     Assert.assertEquals(content, new String(data));
 }
 ```
+# Concurency/locking
+Where are 3 types of transactions:
+* READ - works with the version of the database that was current at the time the transaction was created; 
+  commit is prohibited
+* WRITE (default) - before starting, it waits for the completion of transactions with type EXCLUSIVE; 
+  run competitively, so errors may occur when the GIT database changes; 
+  To eliminate such errors, you need to use the Database.inTransaction (...) function, which, 
+  when an error occurs, tries to repeat the action 
+* EXCLUSIVE - before starting, it waits for the completion of transactions with types EXCLUSIVE & WRITE;
+  after start, transactions with EXCLUSIVE and WRITE types are waiting for its completion;
+  inprocess locking mechanisms are used, 
+  so external programs working with the same database may conflict with this transaction;
+  for reliability, you must use the Database.inTransaction(...) mechanism
+  
 # Libraries used
 * the gorgeous library https://github.com/beijunyi/ParallelGit 
   has been included with minor modifications (uri format in particular)

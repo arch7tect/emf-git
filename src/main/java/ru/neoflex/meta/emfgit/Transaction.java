@@ -45,7 +45,10 @@ public class Transaction implements Closeable {
         this.branch = branch;
         this.lockType = lockType;
         if (lockType == LockType.EXCLUSIVE) {
-            database.getLock().lock();
+            database.getLock().writeLock().lock();
+        }
+        else if (lockType == LockType.WRITE) {
+            database.getLock().readLock().lock();
         }
         this.gfs =  Gfs.newFileSystem(branch, database.getRepository());
     }
@@ -58,7 +61,10 @@ public class Transaction implements Closeable {
     public void close() throws IOException {
         gfs.close();
         if (lockType == LockType.EXCLUSIVE) {
-            database.getLock().unlock();
+            database.getLock().writeLock().unlock();
+        }
+        if (lockType == LockType.WRITE) {
+            database.getLock().readLock().unlock();
         }
     }
 

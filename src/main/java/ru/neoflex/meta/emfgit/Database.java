@@ -27,7 +27,9 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -46,7 +48,7 @@ public class Database implements Closeable {
     private List<EPackage> packages;
     private Map<String, Index> indexes = new HashMap<>();
     private Events events = new Events();
-    private Lock lock = new ReentrantLock();
+    private ReadWriteLock lock = new ReentrantReadWriteLock();
     private Function<EClass, EStructuralFeature> qualifiedNameDelegate;
     private Map<EClass, List<EClass>> descendants = new HashMap<>();
     private String repoName;
@@ -575,7 +577,7 @@ public class Database implements Closeable {
         getIndexes().put(index.getName(), index);
     }
 
-    public Lock getLock() {
+    public ReadWriteLock getLock() {
         return lock;
     }
 
