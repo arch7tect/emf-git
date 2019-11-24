@@ -100,6 +100,7 @@ with existing one we can not rely on internal ids. But,
 if top level objects contains unique qualified name feature,
 we can do it as simple as
 ```java
+Exporter exporter = new Exporter(database);
 try (Transaction tx = database.createTransaction("users")) {
     Path path = tx.getFileSystem().getPath("/export");
     Files.createDirectories(path);
