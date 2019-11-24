@@ -105,7 +105,7 @@ public class ExporterTests extends TestBase {
         try (Transaction tx = database.createTransaction("users")) {
             Path path = tx.getFileSystem().getPath("/zip/all.zip");
             exporter.unzip(Files.newInputStream(path), tx);
-            tx.commit("Database was restored with zip archive");
+            tx.commit("Database was restored from zip archive");
             Assert.assertEquals(2, tx.all().size());
         }
         try (Transaction tx = database.createTransaction("users")) {
