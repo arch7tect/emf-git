@@ -190,9 +190,36 @@ database.inTransaction("users", Transaction.LockType.WRITE, tx -> {
     user.setName(name);
     user.setGroup(group);
     userResource.save(null);
-    tx.commit("User " + name + " updated", "orlov", "");
+    tx.commit("User " + name + " updated", "arch7tect", "");
     return null;
 });
+```
+# Objects and Indexes
+Objects and indexes are just files in the git file system. Objects (in xml format) placed in the
+catalog ```/db/ids``` and indexes in ```/db/idx```. There are two default index types:
+```type_name, ref```. One for checking the uniqueness of top-level object names 
+and another one, for tracking object input references (for referential integrity).
+Example:
+```
+/db/ids/2A/42724DAF9C2260C37A4B223BCCCBD4
+/db/idx/type_name/ru.neoflex.meta.test/Group/masters
+/db/idx/ref/2A/42724DAF9C2260C37A4B223BCCCBD4/38EAA3DDABCBAA7AE0628C7C909CE962  
+```
+# Events(triggers)/referential integrity
+There are some types of events, user can subscribe on:
+```AfterLoad, BeforeSave, AfterSave, BefureDelete```
+User can modify loaded resource, perform additional actions or prohibit the action 
+(by throwing exception).
+Some standard event handlers are registered by default:
+* checking the uniqueness of top-level object names
+* building or rebuilding indexes when creating or updating objects
+* checking referential integrity when deleting objects
+* deleting indexes when deleting objects
+```java
+events.registerBeforeSave(this::checkUniqueQName);
+events.registerAfterSave(this::updateResourceIndexes);
+events.registerBeforeDelete(this::checkDependencies);
+events.registerBeforeDelete(this::deleteResourceIndexes);
 ```
 # Libraries used
 * the gorgeous library https://github.com/beijunyi/ParallelGit 
