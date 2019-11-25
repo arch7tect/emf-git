@@ -18,6 +18,8 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
@@ -128,9 +130,19 @@ public class Transaction implements Closeable {
         return current.getObjectId(false);
     }
 
+    static SecureRandom prng;
+
+    static {
+        try {
+            prng = SecureRandom.getInstance("SHA1PRNG");
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public static String getRandomId(int length) {
         byte[] bytes = new byte[length];
-        new Random().nextBytes(bytes);
+        prng.nextBytes(bytes);
         return hex(bytes);
     }
 
