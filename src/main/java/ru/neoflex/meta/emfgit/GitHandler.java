@@ -31,7 +31,7 @@ public class GitHandler extends URIHandlerImpl {
         Database db = transaction.getDatabase();
         Resource resource = db.createResourceSet(transaction).getResource(uri, true);
         String id = db.getId(uri);
-        String rev = db.getRev(uri);
+        Long rev = db.checkAndGetRev(uri);
         EntityId entityId = new EntityId(id, rev);
 //        Entity old = transaction.load(entityId);
 //        Resource resource = db.entityToResource(transaction, old);

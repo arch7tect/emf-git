@@ -4,6 +4,7 @@ import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.URIConverter;
 import org.eclipse.emf.ecore.xmi.impl.XMIResourceImpl;
+import org.eclipse.jgit.util.StringUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -25,11 +26,10 @@ public class GitOutputStream extends ByteArrayOutputStream implements URIConvert
         Transaction transaction = handler.getTransaction();
         Database db = transaction.getDatabase();
         String id = db.getResourceId(resource);
-        boolean isNew = id == null || id.length() == 0;
-        String rev = isNew ? null : db.checkAndGetRev(uri);
+        EntityId oldEntityId = new EntityId(id, resource.getTimeStamp());
+        boolean isExists = id != null && transaction.isResourceExists(oldEntityId);
         Resource oldResource = null;
-        if (!isNew) {
-            EntityId oldEntityId = new EntityId(id, rev);
+        if (isExists) {
             Entity oldEntity = transaction.load(oldEntityId);
             oldResource = db.entityToResource(transaction, oldEntity);
         }
@@ -37,16 +37,15 @@ public class GitOutputStream extends ByteArrayOutputStream implements URIConvert
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         ((XMIResourceImpl) resource).doSave(os, options);
         byte[] content = os.toByteArray();
-        Entity entity = new Entity(id, rev, content);
-        if (isNew) {
+        Entity entity = new Entity(id, resource.getTimeStamp(), content);
+        if (!isExists) {
             transaction.create(entity);
             id = entity.getId();
         }
         else {
             transaction.update(entity);
         }
-        rev = entity.getRev();
-        URI newURI = db.createURI(id, rev);
+        URI newURI = db.createURI(id, entity.getRev());
         resource.setURI(newURI);
         db.getEvents().fireAfterSave(oldResource, resource, transaction);
     }

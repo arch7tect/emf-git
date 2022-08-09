@@ -37,7 +37,7 @@ public class PerfTests extends TestBase {
                 String name = "group_" + i;
                 group.setName(name);
                 ResourceSet resourceSet = database.createResourceSet(tx);
-                Resource groupResource = resourceSet.createResource(database.createURI(null, null));
+                Resource groupResource = resourceSet.createResource(database.createURI(null));
                 groupResource.getContents().add(group);
                 groupResource.save(null);
                 String groupId = database.getId(groupResource.getURI());
@@ -56,7 +56,7 @@ public class PerfTests extends TestBase {
                 String name = "User_" + i;
                 user.setName(name);
                 user.setGroup(group);
-                Resource userResource = database.createResource(tx, null, null);
+                Resource userResource = database.createResource(tx, null);
                 userResource.getContents().add(user);
                 userResource.save(null);
                 tx.commit("User " + name + " created", "orlov", "");

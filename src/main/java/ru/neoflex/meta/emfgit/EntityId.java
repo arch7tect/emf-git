@@ -2,15 +2,18 @@ package ru.neoflex.meta.emfgit;
 
 public class EntityId {
     private String id;
-    private String rev;
+    private long rev;
 
-    public EntityId() {
-
+    public EntityId(String id) {
+        this(id, 0);
     }
 
-    public EntityId(String id, String rev) {
+    public EntityId(String id, long rev) {
         this.id = id;
         this.rev = rev;
+    }
+
+    public EntityId() {
     }
 
     public String getId() {
@@ -21,15 +24,15 @@ public class EntityId {
         this.id = id;
     }
 
-    public String getRev() {
+    public String[] getIdPath() {
+        return id.split("/");
+    }
+
+    public long getRev() {
         return rev;
     }
 
-    public void setRev(String rev) {
+    public void setRev(long rev) {
         this.rev = rev;
-    }
-
-    public String[] getIdPath() {
-        return new String[] {id.substring(0, 2), id.substring(2)};
     }
 }

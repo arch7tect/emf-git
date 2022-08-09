@@ -276,7 +276,7 @@ public class Exporter {
     }
 
     public EObject importEObject(byte[] image, Transaction tx) throws IOException {
-        Resource resource = database.createResource(tx, null, null);
+        Resource resource = database.createResource(tx, null);
         resource.load(new ByteArrayInputStream(image), null);
         EObject eObject = resource.getContents().get(0);
         EClass eClass = eObject.eClass();

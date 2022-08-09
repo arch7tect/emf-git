@@ -134,19 +134,20 @@ public class Database implements Closeable {
             @Override
             public List<IndexEntry> getEntries(Resource resource, Transaction transaction) throws IOException {
                 ArrayList<IndexEntry> result = new ArrayList<>();
-                EObject eObject = resource.getContents().get(0);
-                EClass eClass = eObject.eClass();
-                EStructuralFeature nameSF = getQNameFeature(eClass);
-                if (nameSF != null) {
-                    String name = (String) eObject.eGet(nameSF);
-                    if (name == null || name.length() == 0) {
-                        throw new IOException("Empty feature name");
+                for (EObject eObject: resource.getContents()) {
+                    EClass eClass = eObject.eClass();
+                    EStructuralFeature nameSF = getQNameFeature(eClass);
+                    if (nameSF != null) {
+                        String name = (String) eObject.eGet(nameSF);
+                        if (name == null || name.length() == 0) {
+                            throw new IOException("Empty feature name");
+                        }
+                        EPackage ePackage = eClass.getEPackage();
+                        IndexEntry entry = new IndexEntry();
+                        entry.setPath(new String[]{ePackage.getNsURI(), eClass.getName(), name});
+                        entry.setContent(getResourceId(resource).getBytes("utf-8"));
+                        result.add(entry);
                     }
-                    EPackage ePackage = eClass.getEPackage();
-                    IndexEntry entry = new IndexEntry();
-                    entry.setPath(new String[]{ePackage.getNsURI(), eClass.getName(), name});
-                    entry.setContent(getResourceId(resource).getBytes("utf-8"));
-                    result.add(entry);
                 }
                 return result;
             }
@@ -175,7 +176,10 @@ public class Database implements Closeable {
                 }
                 for (String id: rootIds) {
                     IndexEntry entry = new IndexEntry();
-                    entry.setPath(new String[]{id.substring(0, 2), id.substring(2), getId(resource.getURI())});
+                    List<String> sl = new ArrayList<>();
+                    sl.addAll(Arrays.asList(id.split("/")));
+                    sl.addAll(Arrays.asList(getId(resource.getURI()).split("/")));
+                    entry.setPath(sl.toArray(new String[0]));
                     entry.setContent(new byte[0]);
                     result.add(entry);
                 }
@@ -189,17 +193,17 @@ public class Database implements Closeable {
         return resource;
     }
 
-    public Resource createResource(Transaction tx, String id, String rev) {
+    public Resource createResource(Transaction tx, String id) {
         ResourceSet resourceSet = createResourceSet(tx);
-        return createResource(resourceSet, id, rev);
+        return createResource(resourceSet, id);
     }
 
-    public Resource createResource(ResourceSet resourceSet, String id, String rev) {
-        URI uri = createURI(id, rev);
+    public Resource createResource(ResourceSet resourceSet, String id) {
+        URI uri = createURI(id);
         return resourceSet.createResource(uri);
     }
 
-    public URI createURI(String id, String rev) {
+    public URI createURI(String id, Long rev) {
         StringBuffer buffer = new StringBuffer("");
         if (id != null) {
             buffer.append(id);
@@ -209,6 +213,10 @@ public class Database implements Closeable {
             buffer.append(rev);
         }
         return createURIByRef(buffer.toString());
+    }
+
+    public URI createURI(String id) {
+        return createURI(id, null);
     }
 
     public URI createURIByRef(String ref) {
@@ -229,7 +237,12 @@ public class Database implements Closeable {
                 .put("*", new XMIResourceFactoryImpl() {
                     @Override
                     public Resource createResource(URI uri) {
-                        XMIResourceImpl resource = new XMIResourceImpl(uri);
+                        XMIResourceImpl resource = new XMIResourceImpl(uri) {
+                            @Override
+                            protected boolean useUUIDs() {
+                                return true;
+                            }
+                        };
                         resource.getDefaultSaveOptions().put(OPTION_ENCODING, "UTF-8");
                         resource.getDefaultSaveOptions().put(OPTION_CONFIGURATION_CACHE, true);
                         resource.getDefaultLoadOptions().put(OPTION_USE_PARSER_POOL, xmlParserPool);
@@ -250,16 +263,16 @@ public class Database implements Closeable {
         return resourceSet;
     }
 
-    public String getRev(URI uri) throws IOException {
+    public Long getRev(URI uri) throws IOException {
         String query = uri.query();
         if (query == null || !query.contains("rev=")) {
             return null;
         }
-        return query.split("rev=")[1];
+        return Long.valueOf(query.split("rev=")[1]);
     }
 
-    public String checkAndGetRev(URI uri) throws IOException {
-        String rev = getRev(uri);
+    public Long checkAndGetRev(URI uri) throws IOException {
+        Long rev = getRev(uri);
         if (rev == null) {
             throw new IOException("Revision not found: " + uri.toString());
         }
@@ -270,7 +283,14 @@ public class Database implements Closeable {
         if (uri.segmentCount() == 0) {
             return null;
         }
-        return uri.segment(0);
+        StringBuffer buf = new StringBuffer();
+        for (int i = 0; i < uri.segmentCount(); ++i) {
+            buf.append(uri.segment(i));
+            if (i < uri.segmentCount() - 1) {
+                buf.append("/");
+            }
+        }
+        return buf.toString();
     }
 
     public String getResourceId(Resource resource) {
@@ -341,7 +361,7 @@ public class Database implements Closeable {
     public List<Resource> getDependentResources(String id, Transaction tx) throws IOException {
         ResourceSet resourceSet = createResourceSet(tx);
         List<Resource> resources = new ArrayList<>();
-        List<IndexEntry> refList = findByIndex(tx, REF_IDX, id.substring(0, 2), id.substring(2));
+        List<IndexEntry> refList = findByIndex(tx, REF_IDX, id.split("/"));
         for (IndexEntry entry : refList) {
             String refId = entry.getPath()[entry.getPath().length - 1];
             resources.add(loadResource(resourceSet, refId));
@@ -372,7 +392,7 @@ public class Database implements Closeable {
     }
 
     public Resource loadResource(ResourceSet resourceSet, String id) throws IOException {
-        URI uri = createURI(id, null);
+        URI uri = createURI(id);
         Resource resource = resourceSet.createResource(uri);
         resource.load(null);
         return resource;
@@ -389,7 +409,7 @@ public class Database implements Closeable {
 
     private void checkDependencies(Resource old, Transaction tx) throws IOException {
         String id = getId(old.getURI());
-        List<IndexEntry> refList = findByIndex(tx, "ref", id.substring(0, 2), id.substring(2));
+        List<IndexEntry> refList = findByIndex(tx, "ref", id.split("/"));
         if (!refList.isEmpty()) {
             String[] path = refList.get(0).getPath();
             throw new IOException("Object " + id + " is referenced by " + path[path.length - 1]);
@@ -448,8 +468,9 @@ public class Database implements Closeable {
     }
 
     public Resource entityToResource(Transaction tx, Entity entity) throws IOException {
-        Resource resource = createResource(tx, entity.getId(), entity.getRev());
+        Resource resource = createResource(tx, entity.getId());
         loadResource(entity.getContent(), resource);
+        resource.setTimeStamp(entity.getRev());
         return resource;
     }
 

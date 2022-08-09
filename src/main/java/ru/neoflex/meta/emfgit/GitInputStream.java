@@ -31,13 +31,14 @@ public class GitInputStream extends InputStream implements URIConverter.Loadable
         Transaction transaction = handler.getTransaction();
         Database db = transaction.getDatabase();
         String id = db.checkAndGetId(uri);
-        EntityId entityId = new EntityId(id, null);
+        EntityId entityId = new EntityId(id);
         Entity entity = transaction.load(entityId);
-        String rev = entity.getRev();
         if (!resource.getContents().isEmpty()) {
             resource.getContents().clear();
         }
         ((XMIResourceImpl) resource).doLoad(new ByteArrayInputStream(entity.getContent()), options);
+        long rev = entity.getRev();
+        resource.setTimeStamp(rev);
         URI newURI = db.createURI(id, rev);
         resource.setURI(newURI);
         db.getEvents().fireAfterLoad(resource, transaction);

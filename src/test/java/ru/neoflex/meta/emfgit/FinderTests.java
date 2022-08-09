@@ -33,20 +33,20 @@ public class FinderTests extends TestBase {
         try (Transaction tx = database.createTransaction("users")) {
             group.setName("masters");
             ResourceSet resourceSet = database.createResourceSet(tx);
-            Resource groupResource = database.createResource(resourceSet, null, null);
+            Resource groupResource = database.createResource(resourceSet, null);
             groupResource.getContents().add(group);
             groupResource.save(null);
             groupId = database.getId(groupResource.getURI());
             user = TestFactory.eINSTANCE.createUser();
             user.setName("Orlov");
             user.setGroup(group);
-            Resource userResource = database.createResource(resourceSet, null, null);
+            Resource userResource = database.createResource(resourceSet, null);
             userResource.getContents().add(user);
             userResource.save(null);
             user = TestFactory.eINSTANCE.createUser();
             user.setName("Simanihin");
             user.setGroup(group);
-            userResource = database.createResource(resourceSet, null, null);
+            userResource = database.createResource(resourceSet, null);
             userResource.getContents().add(user);
             userResource.save(null);
             tx.commit("Users Orlov, Simanihin and group masters created", "orlov", "");

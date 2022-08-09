@@ -32,14 +32,14 @@ public class ExporterTests extends TestBase {
         try (Transaction tx = database.createTransaction("users")) {
             group.setName("masters");
             ResourceSet resourceSet = database.createResourceSet(tx);
-            Resource groupResource = resourceSet.createResource(database.createURI(null, null));
+            Resource groupResource = resourceSet.createResource(database.createURI(null));
             groupResource.getContents().add(group);
             groupResource.save(null);
             groupId = database.getId(groupResource.getURI());
             user = TestFactory.eINSTANCE.createUser();
             user.setName("Orlov");
             user.setGroup(group);
-            Resource userResource = resourceSet.createResource(database.createURI(null, null));
+            Resource userResource = resourceSet.createResource(database.createURI(null));
             userResource.getContents().add(user);
             userResource.save(null);
             tx.commit("User Orlov and group masters created", "orlov", "");
@@ -89,7 +89,7 @@ public class ExporterTests extends TestBase {
             Files.createDirectories(path.getParent());
             ResourceSet resourceSet = database.createResourceSet(tx);
             for (EntityId entityId: tx.all()) {
-                Resource resource = resourceSet.createResource(database.createURI(entityId.getId(), null));
+                Resource resource = resourceSet.createResource(database.createURI(entityId.getId()));
                 resource.load(null);
             }
             exporter.zip(resourceSet, Files.newOutputStream(path));

@@ -7,7 +7,6 @@ import com.beijunyi.parallelgit.filesystem.commands.GfsCommit;
 import com.beijunyi.parallelgit.filesystem.io.DirectoryNode;
 import com.beijunyi.parallelgit.filesystem.io.Node;
 import com.github.marschall.pathclassloader.PathClassLoader;
-import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -17,7 +16,6 @@ import org.eclipse.jgit.treewalk.filter.PathFilter;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.*;
@@ -107,10 +105,7 @@ public class Transaction implements Closeable {
     }
 
     public GitPath getIdPath(EntityId entityId) {
-        String idStr = entityId.getId();
-        String idDir = idStr.substring(0, 2);
-        String idFile = idStr.substring(2);
-        return gfs.getPath("/", IDS_PATH, idDir, idFile);
+        return gfs.getPath("/", IDS_PATH, entityId.getId());
     }
 
     static ObjectId getObjectId(GitPath path) throws IOException {
@@ -164,45 +159,64 @@ public class Transaction implements Closeable {
     }
 
     public Entity create(Entity entity) throws IOException {
-//        String id = getUUID();
-        String id = getRandomId(16);
-        entity.setId(id);
+        if (entity.getId() == null) {
+//          String id = getUUID();
+            String id = getRandomId(2) + "/" + getRandomId(14);
+            entity.setId(id);
+        }
         GitPath path = getIdPath(entity);
         Files.createDirectories(path.getParent());
         Files.write(path, entity.getContent());
-        String rev = getObjectId(path).getName();
-        entity.setRev(rev);
+        entity.setRev(getRev(path));
         return entity;
     }
 
     public Entity load(EntityId entityId) throws IOException {
         GitPath path = getIdPath(entityId);
-        ObjectId objectId = getObjectId(path);
-        if (objectId == null) {
-            throw new IOException("Entity not found: " + entityId.getId());
-        }
-        String rev = objectId.getName();
+        long rev = getRev(path);
         byte[] content = Files.readAllBytes(path);
         return new Entity(entityId.getId(), rev, content);
     }
 
+    public boolean isResourceExists(EntityId entityId) {
+        GitPath path = getIdPath(entityId);
+        try {
+            return getObjectId(path) != null;
+        }
+        catch (Throwable e) {
+            return false;
+        }
+    }
+
+    private long getRev(GitPath path) throws IOException {
+        ObjectId objectId = getObjectId(path);
+        if (objectId == null) {
+            throw new IOException("Path not found: " + path.toString());
+        }
+        String sha1 = objectId.getName();
+        return Long.parseUnsignedLong(sha1.substring(sha1.length() - 12), 16);
+//        RevCommit commit = getLastCommit(path);
+//        if (commit == null) {
+//            throw new IOException("Path not found: " + path.toString());
+//        }
+//        int commitTime = commit.getCommitTime();
+//        return commitTime;
+    }
+
     public Entity update(Entity entity) throws IOException {
         GitPath path = getIdPath(entity);
-        String rev = getObjectId(path).getName();
-        if (!Objects.equals(rev, entity.getRev())) {
+        if (getRev(path) != entity.getRev()) {
             throw new ConcurrentModificationException("Entity was updated: " + entity.getId());
         }
         Files.createDirectories(path.getParent());
         Files.write(path, entity.getContent());
-        String newRev = getObjectId(path).getName();
-        entity.setRev(newRev);
+        entity.setRev(getRev(path));
         return entity;
     }
 
     public void delete(EntityId entityId) throws IOException {
         GitPath path = getIdPath(entityId);
-        String rev = getObjectId(path).getName();
-        if (!Objects.equals(rev, entityId.getRev())) {
+        if (getRev(path) != entityId.getRev()) {
             throw new ConcurrentModificationException("Entity was updated: " + entityId.getId());
         }
         Files.delete(path);
@@ -214,10 +228,15 @@ public class Transaction implements Closeable {
             return Collections.emptyList();
         }
         return Files.walk(idsPath).filter(Files::isRegularFile).map(file -> {
-            EntityId entityId = new EntityId();
-            Path parent = file.getParent();
-            entityId.setId(parent.getFileName().toString() + file.getFileName().toString());
-            return entityId;
+            String id = idsPath.relativize(file).toString();
+            long commitTime;
+            try {
+                commitTime = getRev((GitPath) file);
+            }
+            catch (Throwable e) {
+                commitTime = 0;
+            }
+            return new EntityId(id, commitTime);
         }).collect(Collectors.toList());
     }
 

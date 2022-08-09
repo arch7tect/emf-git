@@ -35,14 +35,14 @@ public class DatabaseTests extends TestBase {
         try (Transaction tx = database.createTransaction("users")) {
             group.setName("masters");
             ResourceSet resourceSet = database.createResourceSet(tx);
-            Resource groupResource = resourceSet.createResource(database.createURI(null, null));
+            Resource groupResource = resourceSet.createResource(database.createURI(null));
             groupResource.getContents().add(group);
             groupResource.save(null);
             groupId = database.getResourceId(groupResource);
             User user = TestFactory.eINSTANCE.createUser();
             user.setName("Orlov");
             user.setGroup(group);
-            Resource userResource = resourceSet.createResource(database.createURI(null, null));
+            Resource userResource = resourceSet.createResource(database.createURI(null));
             userResource.getContents().add(user);
             userResource.save(null);
             tx.commit("User Orlov and group masters created", "orlov", "");
@@ -51,7 +51,7 @@ public class DatabaseTests extends TestBase {
         }
         try (Transaction tx = database.createTransaction("users")){
             ResourceSet resourceSet = database.createResourceSet(tx);
-            Resource userResource = resourceSet.createResource(database.createURI(userId, null));
+            Resource userResource = resourceSet.createResource(database.createURI(userId));
             userResource.load(null);
             User user = (User) userResource.getContents().get(0);
             user.setName("Simanihin");
@@ -62,7 +62,7 @@ public class DatabaseTests extends TestBase {
             User user = TestFactory.eINSTANCE.createUser();
             user.setName("Orlov");
             user.setGroup(group);
-            Resource userResource = database.createResource(tx, null, null);
+            Resource userResource = database.createResource(tx, null);
             userResource.getContents().add(user);
             userResource.save(null);
             tx.commit("User Orlov created", "orlov", "");
@@ -71,7 +71,7 @@ public class DatabaseTests extends TestBase {
             User user = TestFactory.eINSTANCE.createUser();
             user.setName("Orlov");
             user.setGroup(group);
-            Resource userResource = database.createResource(tx, null, null);
+            Resource userResource = database.createResource(tx, null);
             userResource.getContents().add(user);
             try {
                 userResource.save(null);
@@ -84,7 +84,7 @@ public class DatabaseTests extends TestBase {
         }
         try (Transaction tx = database.createTransaction("users")){
             ResourceSet resourceSet = database.createResourceSet(tx);
-            Resource groupResource = resourceSet.createResource(database.createURI(groupId, null));
+            Resource groupResource = resourceSet.createResource(database.createURI(groupId));
             groupResource.load(null);
             try {
                 groupResource.delete(null);

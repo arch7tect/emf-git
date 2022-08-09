@@ -69,7 +69,8 @@ public class Finder {
         int length = limit <= 0 ? ids.size() - startIndex : min(limit, ids.size() - startIndex);
         for (EntityId entityId: ids.subList(startIndex, startIndex + length)) {
             Entity entity = tx.load(entityId);
-            Resource resource = database.createResourceSet(tx).createResource(database.createURI(entity.getId(), entity.getRev()));
+            Resource resource = database.createResourceSet(tx).createResource(database.createURI(entity.getId()));
+            resource.setTimeStamp(entity.getRev());
             database.loadResource(entity.getContent(), resource);
             if (match(entity, resource.getContents().get(0), selector)) {
                 resourceSet.getResources().add(resource);
@@ -361,7 +362,7 @@ public class Finder {
         Database database = tx.getDatabase();
         if (query.has("id")) {
             String id = query.get("id").asText();
-            EntityId entityId = new EntityId(id, null);
+            EntityId entityId = new EntityId(id, 0);
             if (Files.exists(tx.getIdPath(entityId))) {
                 return Collections.singletonList(entityId);
             }
@@ -385,7 +386,7 @@ public class Finder {
                     List<IndexEntry> ieList = database.findEClassIndexEntries(eClass, name, tx);
                     List<EntityId> result = new ArrayList<>();
                     for (IndexEntry ie: ieList) {
-                        result.add(new EntityId(new String(ie.getContent()), null));
+                        result.add(new EntityId(new String(ie.getContent()), 0));
                     }
                     return result;
                 }
