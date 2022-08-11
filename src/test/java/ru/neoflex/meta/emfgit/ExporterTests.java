@@ -5,9 +5,7 @@ import org.eclipse.emf.ecore.resource.ResourceSet;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import ru.neoflex.meta.test.Group;
-import ru.neoflex.meta.test.TestFactory;
-import ru.neoflex.meta.test.User;
+import ru.neoflex.meta.test.*;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,6 +30,14 @@ public class ExporterTests extends TestBase {
         try (Transaction tx = database.createTransaction("users")) {
             group.setName("masters");
             ResourceSet resourceSet = database.createResourceSet(tx);
+            Company neoflex = TestFactory.eINSTANCE.createCompany();
+            neoflex.setName("Neoflex");
+            Department system = TestFactory.eINSTANCE.createDepartment();
+            system.setName("System");
+            neoflex.getDepartments().add(system);
+            Resource companyResource = resourceSet.createResource(database.createURI("data/company"));
+            companyResource.getContents().add(neoflex);
+            companyResource.save(null);
             Resource groupResource = resourceSet.createResource(database.createURI(null));
             groupResource.getContents().add(group);
             groupResource.save(null);
@@ -39,6 +45,7 @@ public class ExporterTests extends TestBase {
             user = TestFactory.eINSTANCE.createUser();
             user.setName("Orlov");
             user.setGroup(group);
+            user.setDepartment(system);
             Resource userResource = resourceSet.createResource(database.createURI(null));
             userResource.getContents().add(user);
             userResource.save(null);
@@ -60,7 +67,7 @@ public class ExporterTests extends TestBase {
             Files.createDirectories(path);
             exporter.exportAll("users", path);
             tx.commit("Export all objects");
-            Assert.assertEquals(3, Files.walk(path).filter(Files::isRegularFile).count());
+            Assert.assertEquals(4, Files.walk(path).filter(Files::isRegularFile).count());
         }
         try (Transaction tx = database.createTransaction("users")) {
             Path path = tx.getFileSystem().getPath("/db");
@@ -72,13 +79,13 @@ public class ExporterTests extends TestBase {
             Path path = tx.getFileSystem().getPath("/export");
             exporter.importPath(path, tx);
             tx.commit("Database was restored");
-            Assert.assertEquals(2, tx.all().size());
+            Assert.assertEquals(3, tx.all().size());
         }
         try (Transaction tx = database.createTransaction("users")) {
             Path path = tx.getFileSystem().getPath("/export");
             exporter.importPath(path, tx);
             tx.commit("Database was restored with existing objects");
-            Assert.assertEquals(2, tx.all().size());
+            Assert.assertEquals(3, tx.all().size());
         }
     }
 
@@ -106,13 +113,13 @@ public class ExporterTests extends TestBase {
             Path path = tx.getFileSystem().getPath("/zip/all.zip");
             exporter.unzip(Files.newInputStream(path), tx);
             tx.commit("Database was restored from zip archive");
-            Assert.assertEquals(2, tx.all().size());
+            Assert.assertEquals(3, tx.all().size());
         }
         try (Transaction tx = database.createTransaction("users")) {
             Path path = tx.getFileSystem().getPath("/zip/all.zip");
             exporter.unzip(path, tx);
             tx.commit("Database was restored 2 time with zip archive");
-            Assert.assertEquals(2, tx.all().size());
+            Assert.assertEquals(3, tx.all().size());
         }
     }
 }

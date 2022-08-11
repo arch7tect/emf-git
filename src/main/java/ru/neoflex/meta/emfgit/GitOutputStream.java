@@ -8,12 +8,47 @@ import org.eclipse.jgit.util.StringUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.Map;
 
 public class GitOutputStream extends ByteArrayOutputStream implements URIConverter.Saveable {
     private GitHandler handler;
     private URI uri;
     private Map<?, ?> options;
+
+    static SecureRandom prng;
+
+    static {
+        try {
+            prng = SecureRandom.getInstance("SHA1PRNG");
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static String getRandomId(int length) {
+        byte[] bytes = new byte[length];
+        prng.nextBytes(bytes);
+        return hex(bytes);
+    }
+
+//    public static String getUUID() {
+//        byte[] bytes = new byte[16];
+//        EcoreUtil.generateUUID(bytes);
+//        return hex(bytes);
+//    }
+
+    private static final char[] HEX_ARRAY = "0123456789ABCDEF".toCharArray();
+    private static String hex(byte[] bytes) {
+        char[] hexChars = new char[bytes.length * 2];
+        for (int j = 0; j < bytes.length; j++) {
+            int v = bytes[j] & 0xFF;
+            hexChars[j * 2] = HEX_ARRAY[v >>> 4];
+            hexChars[j * 2 + 1] = HEX_ARRAY[v & 0x0F];
+        }
+        return new String(hexChars);
+    }
 
     public GitOutputStream(GitHandler handler, URI uri, Map<?, ?> options) {
         this.handler = handler;
@@ -32,6 +67,12 @@ public class GitOutputStream extends ByteArrayOutputStream implements URIConvert
         if (isExists) {
             Entity oldEntity = transaction.load(oldEntityId);
             oldResource = db.entityToResource(transaction, oldEntity);
+        }
+        else {
+            if (id== null) {
+                id = getRandomId(2) + "/" + getRandomId(14);
+            }
+            resource.setURI(db.createURI(id));
         }
         db.getEvents().fireBeforeSave(oldResource, resource, transaction);
         ByteArrayOutputStream os = new ByteArrayOutputStream();

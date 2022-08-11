@@ -6,6 +6,15 @@
 )
 package ru.neoflex.meta.test
 
+class Department {
+    String name
+}
+
+class Company {
+    String name
+    contains Department[] departments keys name
+}
+
 class Group {
     String name
 }
@@ -13,4 +22,5 @@ class Group {
 class User {
     String name
     refers Group group
+    refers Department department
 }

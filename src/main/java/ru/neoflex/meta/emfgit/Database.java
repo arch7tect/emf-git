@@ -120,7 +120,7 @@ public class Database implements Closeable {
             throw new IllegalArgumentException(String.format(
                     "Qualified name not found for eClass: %s", EcoreUtil.getURI(eClass)));
         }
-        return eClass.getEStructuralFeature("name");
+        return feature;
     }
 
 
@@ -194,12 +194,20 @@ public class Database implements Closeable {
     }
 
     public Resource createResource(Transaction tx, String id) {
+        return createResource(tx, id, null);
+    }
+
+    public Resource createResource(Transaction tx, String id, Long rev) {
         ResourceSet resourceSet = createResourceSet(tx);
-        return createResource(resourceSet, id);
+        return createResource(resourceSet, id, rev);
     }
 
     public Resource createResource(ResourceSet resourceSet, String id) {
-        URI uri = createURI(id);
+        return createResource(resourceSet, id, null);
+    }
+
+    public Resource createResource(ResourceSet resourceSet, String id, Long rev) {
+        URI uri = createURI(id, rev);
         return resourceSet.createResource(uri);
     }
 
@@ -361,9 +369,12 @@ public class Database implements Closeable {
     public List<Resource> getDependentResources(String id, Transaction tx) throws IOException {
         ResourceSet resourceSet = createResourceSet(tx);
         List<Resource> resources = new ArrayList<>();
-        List<IndexEntry> refList = findByIndex(tx, REF_IDX, id.split("/"));
+        String[] ids = id.split("/");
+        List<IndexEntry> refList = findByIndex(tx, REF_IDX, ids);
         for (IndexEntry entry : refList) {
-            String refId = entry.getPath()[entry.getPath().length - 1];
+            String[] refPath = new String[entry.getPath().length - ids.length];
+            System.arraycopy(entry.getPath(), ids.length, refPath, 0, refPath.length);
+            String refId = String.join("/", refPath);
             resources.add(loadResource(resourceSet, refId));
         }
         return resources;
@@ -468,7 +479,7 @@ public class Database implements Closeable {
     }
 
     public Resource entityToResource(Transaction tx, Entity entity) throws IOException {
-        Resource resource = createResource(tx, entity.getId());
+        Resource resource = createResource(tx, entity.getId(), entity.getRev());
         loadResource(entity.getContent(), resource);
         resource.setTimeStamp(entity.getRev());
         return resource;

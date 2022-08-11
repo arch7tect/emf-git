@@ -16,9 +16,9 @@ import org.eclipse.jgit.treewalk.filter.PathFilter;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
-import java.util.*;
+import java.util.Collections;
+import java.util.ConcurrentModificationException;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
@@ -125,45 +125,7 @@ public class Transaction implements Closeable {
         return current.getObjectId(false);
     }
 
-    static SecureRandom prng;
-
-    static {
-        try {
-            prng = SecureRandom.getInstance("SHA1PRNG");
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static String getRandomId(int length) {
-        byte[] bytes = new byte[length];
-        prng.nextBytes(bytes);
-        return hex(bytes);
-    }
-
-//    public static String getUUID() {
-//        byte[] bytes = new byte[16];
-//        EcoreUtil.generateUUID(bytes);
-//        return hex(bytes);
-//    }
-
-    private static final char[] HEX_ARRAY = "0123456789ABCDEF".toCharArray();
-    private static String hex(byte[] bytes) {
-        char[] hexChars = new char[bytes.length * 2];
-        for (int j = 0; j < bytes.length; j++) {
-            int v = bytes[j] & 0xFF;
-            hexChars[j * 2] = HEX_ARRAY[v >>> 4];
-            hexChars[j * 2 + 1] = HEX_ARRAY[v & 0x0F];
-        }
-        return new String(hexChars);
-    }
-
     public Entity create(Entity entity) throws IOException {
-        if (entity.getId() == null) {
-//          String id = getUUID();
-            String id = getRandomId(2) + "/" + getRandomId(14);
-            entity.setId(id);
-        }
         GitPath path = getIdPath(entity);
         Files.createDirectories(path.getParent());
         Files.write(path, entity.getContent());

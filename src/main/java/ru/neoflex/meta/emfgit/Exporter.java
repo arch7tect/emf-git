@@ -117,7 +117,8 @@ public class Exporter {
             String name = (String) eObject.eGet(nameAttribute);
             if (name != null && name.length() > 0) {
                 byte[] bytes = exportEObjectWithoutExternalRefs(eObject);
-                String fileName = ePackage.getName() + "_" + eClass.getName() + "_" + name;
+//                String fileName = ePackage.getName() + "_" + eClass.getName() + "_" + name;
+                String fileName = database.getId(eObject.eResource().getURI());
                 Path filePath = path.resolve(fileName + XMI);
                 Files.createDirectories(filePath.getParent());
                 Files.write(filePath, bytes);
@@ -180,7 +181,8 @@ public class Exporter {
             if (nameAttribute != null) {
                 String name = (String) eObject.eGet(nameAttribute);
                 if (name != null && name.length() > 0) {
-                    String fileName = ePackage.getName() + "_" + eClass.getName() + "_" + name;
+//                    String fileName = ePackage.getName() + "_" + eClass.getName() + "_" + name;
+                    String fileName = database.getId(resource.getURI());
                     byte[] refsBytes = exportExternalRefs(eObject);
                     if (refsBytes != null) {
                         ZipEntry refsEntry = new ZipEntry(fileName + REFS);
@@ -201,7 +203,8 @@ public class Exporter {
             if (nameAttribute != null) {
                 String name = (String) eObject.eGet(nameAttribute);
                 if (name != null && name.length() > 0) {
-                    String fileName = ePackage.getName() + "_" + eClass.getName() + "_" + name;
+//                    String fileName = ePackage.getName() + "_" + eClass.getName() + "_" + name;
+                    String fileName = database.getId(resource.getURI());
                     byte[] bytes = exportEObjectWithoutExternalRefs(eObject);
                     ZipEntry zipEntry = new ZipEntry(fileName + XMI);
                     zipOutputStream.putNextEntry(zipEntry);
@@ -225,7 +228,7 @@ public class Exporter {
                         outputStream.write(buffer, 0, length);
                     }
                     if (zipEntry.getName().endsWith(XMI)) {
-                        importEObject(outputStream.toByteArray(), tx);
+                        importResource(outputStream.toByteArray(), tx, zipEntry.getName().substring(0, zipEntry.getName().length() - XMI.length()));
                         ++entityCount;
                     }
                     else if (zipEntry.getName().endsWith(REFS)) {
@@ -263,10 +266,10 @@ public class Exporter {
     }
 
     public void importPath(Path path, Transaction tx) throws IOException {
-        List<Path> jsonPaths = Files.walk(path).filter(Files::isRegularFile).filter(file -> file.getFileName().toString().endsWith(XMI)).collect(Collectors.toList());
-        for (Path jsonPath : jsonPaths) {
-            byte[] content = Files.readAllBytes(jsonPath);
-            importEObject(content, tx);
+        List<Path> xmiPaths = Files.walk(path).filter(Files::isRegularFile).filter(file -> file.getFileName().toString().endsWith(XMI)).collect(Collectors.toList());
+        for (Path xmiPath : xmiPaths) {
+            byte[] content = Files.readAllBytes(xmiPath);
+            importResource(content, tx, path.relativize(xmiPath).toString());
         }
         List<Path> refsPaths = Files.walk(path).filter(Files::isRegularFile).filter(file -> file.getFileName().toString().endsWith(REFS)).collect(Collectors.toList());
         for (Path refsPath : refsPaths) {
@@ -275,8 +278,8 @@ public class Exporter {
         }
     }
 
-    public EObject importEObject(byte[] image, Transaction tx) throws IOException {
-        Resource resource = database.createResource(tx, null);
+    public EObject importResource(byte[] image, Transaction tx, String id) throws IOException {
+        Resource resource = database.createResource(tx, id);
         resource.load(new ByteArrayInputStream(image), null);
         EObject eObject = resource.getContents().get(0);
         EClass eClass = eObject.eClass();
@@ -289,6 +292,7 @@ public class Exporter {
         if (existentRS.getResources().size() > 0) {
             Resource r = existentRS.getResources().get(0);
             resource.setURI(r.getURI());
+            resource.setTimeStamp(r.getTimeStamp());
         }
         resource.save(null);
         return eObject;

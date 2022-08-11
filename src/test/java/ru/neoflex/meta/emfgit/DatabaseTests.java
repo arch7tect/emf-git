@@ -6,9 +6,7 @@ import org.eclipse.jgit.api.errors.GitAPIException;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import ru.neoflex.meta.test.Group;
-import ru.neoflex.meta.test.TestFactory;
-import ru.neoflex.meta.test.User;
+import ru.neoflex.meta.test.*;
 
 import java.io.IOException;
 import java.net.URI;
@@ -33,8 +31,16 @@ public class DatabaseTests extends TestBase {
         String groupId;
         Group group = TestFactory.eINSTANCE.createGroup();
         try (Transaction tx = database.createTransaction("users")) {
-            group.setName("masters");
             ResourceSet resourceSet = database.createResourceSet(tx);
+            Company neoflex = TestFactory.eINSTANCE.createCompany();
+            neoflex.setName("Neoflex");
+            Department system = TestFactory.eINSTANCE.createDepartment();
+            system.setName("System");
+            neoflex.getDepartments().add(system);
+            Resource companyResource = resourceSet.createResource(database.createURI("data/company"));
+            companyResource.getContents().add(neoflex);
+            companyResource.save(null);
+            group.setName("masters");
             Resource groupResource = resourceSet.createResource(database.createURI(null));
             groupResource.getContents().add(group);
             groupResource.save(null);
@@ -42,6 +48,7 @@ public class DatabaseTests extends TestBase {
             User user = TestFactory.eINSTANCE.createUser();
             user.setName("Orlov");
             user.setGroup(group);
+            user.setDepartment(system);
             Resource userResource = resourceSet.createResource(database.createURI(null));
             userResource.getContents().add(user);
             userResource.save(null);
@@ -105,7 +112,7 @@ public class DatabaseTests extends TestBase {
         try (Transaction tx = database.createTransaction("users")){
             List<Resource> dependent = database.getDependentResources(groupId, tx);
             Assert.assertEquals(2, dependent.size());
-            Assert.assertEquals(3, tx.all().size());
+            Assert.assertEquals(4, tx.all().size());
             Assert.assertEquals(1, database.findByEClass(group.eClass(), null, tx).getResources().size());
             Assert.assertEquals(1, database.findByEClass(group.eClass(), "masters", tx).getResources().size());
             Assert.assertEquals(0, database.findByEClass(group.eClass(), "UNKNOWN", tx).getResources().size());
