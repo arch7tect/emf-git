@@ -14,7 +14,7 @@
         <maven.compiler.target>1.8</maven.compiler.target>
         <maven.compiler.fork>true</maven.compiler.fork>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <jackson-version>2.10.0</jackson-version>
+        <jackson-version>2.12.6.1</jackson-version>
         <emf-version>2.18.0</emf-version>
         <emf-xmi-version>2.16.0</emf-xmi-version>
         <emf-common-version>2.16.0</emf-common-version>
@@ -62,12 +62,12 @@
         <dependency>
             <groupId>org.eclipse.jgit</groupId>
             <artifactId>org.eclipse.jgit</artifactId>
-            <version>5.3.0.201903130848-r</version>
+            <version>5.11.0.202103091610-r</version>
         </dependency>
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
-            <version>4.12</version>
+            <version>4.13.1</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -78,7 +78,7 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-log4j12</artifactId>
-            <version>1.7.5</version>
+            <version>1.7.30</version>
         </dependency>
     </dependencies>
 
