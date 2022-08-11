@@ -3,6 +3,15 @@ let's say you have such a model (in terms of xcore language):
 ```xcore
 package ru.neoflex.meta.test
 
+class Department {
+    String name
+}
+
+class Company {
+    String name
+    contains Department[] departments keys name
+}
+
 class Group {
     String name
 }
@@ -18,17 +27,25 @@ Now, ctreate database and save objects:
 ```java
 Database database = new Database("gitdb", new ArrayList<EPackage>(){{add(TestPackage.eINSTANCE);}});
 try (Transaction tx = database.createTransaction("users")) {
+    ResourceSet resourceSet = database.createResourceSet(tx);
+    Company neoflex = TestFactory.eINSTANCE.createCompany();
+    neoflex.setName("Neoflex");
+    Department system = TestFactory.eINSTANCE.createDepartment();
+    system.setName("System");
+    neoflex.getDepartments().add(system);
+    Resource companyResource = resourceSet.createResource(database.createURI("data/company"));
+    companyResource.getContents().add(neoflex);
+    companyResource.save(null);
     Group group = TestFactory.eINSTANCE.createGroup();
     group.setName("masters");
-    ResourceSet resourceSet = database.createResourceSet(tx);
-    Resource groupResource = resourceSet.createResource(database.createURI(null, null));
+    Resource groupResource = resourceSet.createResource(database.createURI(null));
     groupResource.getContents().add(group);
     groupResource.save(null);
     String groupId = database.getResourceId(groupResource);
     User user = TestFactory.eINSTANCE.createUser();
     user.setName("arch7tect");
     user.setGroup(group);
-    Resource userResource = resourceSet.createResource(database.createURI(null, null));
+    Resource userResource = resourceSet.createResource(database.createURI(null));
     userResource.getContents().add(user);
     userResource.save(null);
     tx.commit("User arch7tect and group masters created", "arch7tect", "");
@@ -57,10 +74,10 @@ Load resource by id
 ```java
 try (Transaction tx = database.createTransaction("users")){
     ResourceSet resourceSet = database.createResourceSet(tx);
-    Resource userResource = resourceSet.createResource(database.createURI(userId, null));
+    Resource userResource = resourceSet.createResource(database.createURI(userId));
     userResource.load(null);
     User user = (User) userResource.getContents().get(0);
-    Assert.assertEquals("masters", user.getGroup().getName*());
+    Assert.assertEquals("masters", user.getGroup().getName());
 }
 ```
 Find resource
@@ -77,7 +94,7 @@ try (Transaction tx = database.createTransaction("users")) {
     List<Resource> dependent = database.getDependentResources(groupId, tx);
     Assert.assertEquals(1, dependent.size());
 
-    Assert.assertEquals(2, tx.all().size());
+    Assert.assertEquals(3, tx.all().size());
 
     Finder finder = Finder.create(TestPackage.eINSTANCE.getUser());
     finder.selector().with("contents").with("name").put("$regex", ".*rch7.*");
@@ -128,7 +145,7 @@ try (Transaction tx = database.createTransaction("users")) {
     Files.createDirectories(path.getParent());
     ResourceSet resourceSet = database.createResourceSet(tx);
     for (EntityId entityId: tx.all()) {
-        Resource resource = resourceSet.createResource(database.createURI(entityId.getId(), null));
+        Resource resource = resourceSet.createResource(database.createURI(entityId.getId()));
         resource.load(null);
     }
     exporter.zip(resourceSet, Files.newOutputStream(path));
