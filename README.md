@@ -19,6 +19,7 @@ class Group {
 class User {
     String name
     refers Group group
+    refers Department department
 }
 
 ```
@@ -45,11 +46,12 @@ try (Transaction tx = database.createTransaction("users")) {
     User user = TestFactory.eINSTANCE.createUser();
     user.setName("arch7tect");
     user.setGroup(group);
+    user.setDepartment(system);
     Resource userResource = resourceSet.createResource(database.createURI(null));
     userResource.getContents().add(user);
     userResource.save(null);
     tx.commit("User arch7tect and group masters created", "arch7tect", "");
-    String userId = database.getResourceId(userResource);
+    String userId = database.getId(userResource);
 }
 ```
 
