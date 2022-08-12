@@ -32,10 +32,17 @@ import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 public class Exporter {
-    public static final String FRAGMENT = "fragment";
     public static final String NAME = "name";
     public static final String XMI = ".xmi";
     public static final String REFS = ".refs";
+    public static final String E_OBJECT = "e-object";
+    public static final String REF_OBJECT = "ref-object";
+    public static final String REFERENCE = "reference";
+    public static final String FEATURE = "feature";
+    public static final String FRAGMENT = "fragment";
+    public static final String INDEX = "index";
+    public static final String E_CLASS = "e-class";
+    public static final String Q_NAME = "q-name";
 
     Database database;
 
@@ -274,10 +281,10 @@ public class Exporter {
     }
     protected EObject elementToObject(Element element, Transaction tx) throws Exception {
         ResourceSet rs = tx.getDatabase().createResourceSet(tx);
-        String classUri = element.getAttribute("e-class");
+        String classUri = element.getAttribute(E_CLASS);
         EClass eClass = (EClass) rs.getEObject(URI.createURI(classUri), false);
-        String qName = element.getAttribute("q-name");
-        String fragment = element.getAttribute("fragment");
+        String qName = element.getAttribute(Q_NAME);
+        String fragment = element.getAttribute(FRAGMENT);
         List<EObject> eObjects = tx.getDatabase().findByEClass(eClass, qName, tx)
                 .getResources().stream()
                 .flatMap(r -> r.getContents().stream())
@@ -300,20 +307,20 @@ public class Exporter {
         EObject eObject = elementToObject(rootElement, tx);
         unsetExternalReferences(eObject);
         List<Setting> settings = new ArrayList<>();
-        NodeList refObjectNodes = rootElement.getElementsByTagName("ref-object");
+        NodeList refObjectNodes = rootElement.getElementsByTagName(REF_OBJECT);
         for (int i = 0; i < refObjectNodes.getLength(); ++i) {
             Element refObjectNode = (Element) refObjectNodes.item(i);
             EObject refObject = elementToObject(refObjectNode, tx);
-            NodeList refNodes = refObjectNode.getElementsByTagName("reference");
+            NodeList refNodes = refObjectNode.getElementsByTagName(REFERENCE);
             for (int j = 0; j < refNodes.getLength(); ++j) {
                 Element refNode = (Element) refNodes.item(j);
                 Setting setting = new Setting();
                 setting.refObject = refObject;
-                String fragment = refNode.getAttribute("fragment");
+                String fragment = refNode.getAttribute(FRAGMENT);
                 setting.referenceeObject = fragment == null || fragment.length() == 0 ? eObject : EcoreUtil.getEObject(eObject, fragment);
-                String feature = refNode.getAttribute("feature");
+                String feature = refNode.getAttribute(FEATURE);
                 setting.eReference = (EReference) setting.referenceeObject.eClass().getEStructuralFeature(feature);
-                int index = Integer.parseInt(refNode.getAttribute("index"));
+                int index = Integer.parseInt(refNode.getAttribute(INDEX));
                 setting.index = index;
                 settings.add(setting);
             }
@@ -336,9 +343,9 @@ public class Exporter {
         EObject rootContainer = EcoreUtil.getRootContainer(eObject);
         String fragment = EcoreUtil.getRelativeURIFragmentPath(rootContainer, eObject);
         String qName = (String) rootContainer.eGet(database.checkAndGetQNameFeature(rootContainer.eClass()));
-        element.setAttribute("e-class", EcoreUtil.getURI(rootContainer.eClass()).toString());
-        element.setAttribute("q-name", qName);
-        element.setAttribute("fragment", fragment);
+        element.setAttribute(E_CLASS, EcoreUtil.getURI(rootContainer.eClass()).toString());
+        element.setAttribute(Q_NAME, qName);
+        element.setAttribute(FRAGMENT, fragment);
         return element;
     }
 
@@ -350,25 +357,25 @@ public class Exporter {
         DocumentBuilderFactory builderFactory = DocumentBuilderFactory.newInstance();
         DocumentBuilder documentBuilder = builderFactory.newDocumentBuilder();
         Document document = documentBuilder.newDocument();
-        Element rootElement = objectToElement(document, eObject, "e-object");
+        Element rootElement = objectToElement(document, eObject, E_OBJECT);
         document.appendChild(rootElement);
         for (EObject refObject : crs.keySet()) {
-            Element referenceObjectElement = objectToElement(document, refObject, "ref-object");
+            Element referenceObjectElement = objectToElement(document, refObject, REF_OBJECT);
             rootElement.appendChild(referenceObjectElement);
             for (EStructuralFeature.Setting setting : crs.get(refObject)) {
-                Element referenceElement = document.createElement("reference");
+                Element referenceElement = document.createElement(REFERENCE);
                 referenceObjectElement.appendChild(referenceElement);
-                referenceElement.setAttribute("feature", setting.getEStructuralFeature().getName());
+                referenceElement.setAttribute(FEATURE, setting.getEStructuralFeature().getName());
                 EObject child = setting.getEObject();
                 String fragment = EcoreUtil.getRelativeURIFragmentPath(eObject, child);
-                referenceElement.setAttribute("fragment", fragment);
+                referenceElement.setAttribute(FRAGMENT, fragment);
                 EStructuralFeature sf = setting.getEStructuralFeature();
                 int index = -1;
                 if (sf.isMany()) {
                     EList eList = (EList) child.eGet(sf);
                     index = eList.indexOf(refObject);
                 }
-                referenceElement.setAttribute("index", String.valueOf(index));
+                referenceElement.setAttribute(INDEX, String.valueOf(index));
             }
         }
         TransformerFactory transformerFactory = TransformerFactory.newInstance();
