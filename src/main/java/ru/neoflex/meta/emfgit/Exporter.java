@@ -1,17 +1,25 @@
 package ru.neoflex.meta.emfgit;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.eclipse.emf.common.util.EList;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.*;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.ResourceSet;
 import org.eclipse.emf.ecore.util.EcoreUtil;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
+import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
 import java.io.*;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
@@ -24,9 +32,6 @@ import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 public class Exporter {
-    public static final String EXTERNAL_REFERENCES = "externalReferences";
-    public static final String REF_OBJECT = "refObject";
-    public static final String FEATURES = "features";
     public static final String FRAGMENT = "fragment";
     public static final String NAME = "name";
     public static final String XMI = ".xmi";
@@ -36,39 +41,6 @@ public class Exporter {
 
     public Exporter(Database database) {
         this.database = database;
-    }
-
-    public ObjectNode objectToTree(EObject eObject) {
-        ObjectNode objectNode = new ObjectMapper().createObjectNode();
-        EObject rootContainer = EcoreUtil.getRootContainer(eObject);
-        String fragment = EcoreUtil.getRelativeURIFragmentPath(rootContainer, eObject);
-        objectNode.put("eClass", eClass2String(rootContainer.eClass()));
-        EStructuralFeature nameAttribute = database.checkAndGetQNameFeature(rootContainer.eClass());
-        objectNode.put(NAME, (String) rootContainer.eGet(nameAttribute));
-        objectNode.put(FRAGMENT, fragment);
-        return objectNode;
-    }
-
-    public byte[] exportExternalRefs(EObject eObject) throws JsonProcessingException {
-        ObjectNode objectNode = objectToTree(eObject);
-        ArrayNode externalReferences = objectNode.withArray(EXTERNAL_REFERENCES);
-        Map<EObject, Collection<EStructuralFeature.Setting>> crs = EcoreUtil.ExternalCrossReferencer.find(Collections.singleton(eObject));
-        if (crs.size() == 0) {
-            return null;
-        }
-        for (EObject refObject: crs.keySet()) {
-            ObjectNode externalReference = externalReferences.addObject();
-            externalReference.set(REF_OBJECT, objectToTree(refObject));
-            ArrayNode features = externalReference.putArray(FEATURES);
-            for (EStructuralFeature.Setting setting: crs.get(refObject)) {
-                ObjectNode feature = features.addObject();
-                feature.put(NAME, setting.getEStructuralFeature().getName());
-                EObject child = setting.getEObject();
-                String fragment = EcoreUtil.getRelativeURIFragmentPath(eObject, child);
-                feature.put(FRAGMENT, fragment);
-            }
-        }
-        return new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsBytes(objectNode);
     }
 
     public byte[] exportEObjectWithoutExternalRefs(EObject eObject) throws IOException {
@@ -92,24 +64,7 @@ public class Exporter {
     }
 
 
-    public EObject treeToObject(JsonNode objectNode, Transaction tx) throws IOException {
-        String uri = objectNode.get("eClass").textValue();
-        String name = objectNode.get(NAME).textValue();
-        if (name == null || name.length() == 0) {
-            throw new IOException("Object " + uri + " with empty name not found");
-        }
-        EClass eClass = string2EClass(uri);
-        ResourceSet resourceSet = database.findByEClass(eClass, name, tx);
-        if (resourceSet.getResources().size() != 1) {
-            throw new IOException("Object " + uri + "[" + name + "] not found or not unique");
-        }
-        EObject eObject = resourceSet.getResources().get(0).getContents().get(0);
-        String fragment = objectNode.get(FRAGMENT).textValue();
-        return fragment == null || fragment.length() == 0 ? eObject : EcoreUtil.getEObject(eObject, fragment);
-    }
-
-
-    public void exportEObject(EObject eObject, Path path) throws IOException {
+    public void exportEObject(EObject eObject, Path path) throws IOException, ParserConfigurationException, TransformerException {
         EClass eClass = eObject.eClass();
 //        EPackage ePackage = eClass.getEPackage();
         EStructuralFeature nameAttribute = database.getQNameFeature(eClass);
@@ -122,7 +77,7 @@ public class Exporter {
                 Path filePath = path.resolve(fileName + XMI);
                 Files.createDirectories(filePath.getParent());
                 Files.write(filePath, bytes);
-                byte[] refsBytes = exportExternalRefs(eObject);
+                byte[] refsBytes = exportExternalReferences(eObject);
                 if (refsBytes != null) {
                     Path refsPath = path.resolve(fileName + REFS);
                     Files.createDirectories(refsPath.getParent());
@@ -132,7 +87,7 @@ public class Exporter {
         }
     }
 
-    public void exportResourceSet(ResourceSet resourceSet, Path path) throws IOException {
+    public void exportResourceSet(ResourceSet resourceSet, Path path) throws IOException, ParserConfigurationException, TransformerException {
         for (Resource resource: resourceSet.getResources()) {
             for (EObject eObject: resource.getContents()) {
                 exportEObject(eObject, path);
@@ -153,6 +108,8 @@ public class Exporter {
             for (Resource resource: resources) {
                 zipResourceReferences(zipOutputStream, resource);
             }
+        } catch (Exception e) {
+            throw new IOException(e);
         }
     }
 
@@ -173,7 +130,7 @@ public class Exporter {
         });
     }
 
-    public void zipResourceReferences(ZipOutputStream zipOutputStream, Resource resource) throws IOException {
+    public void zipResourceReferences(ZipOutputStream zipOutputStream, Resource resource) throws IOException, ParserConfigurationException, TransformerException {
         for (EObject eObject: resource.getContents()) {
             EClass eClass = eObject.eClass();
             EPackage ePackage = eClass.getEPackage();
@@ -183,7 +140,7 @@ public class Exporter {
                 if (name != null && name.length() > 0) {
 //                    String fileName = ePackage.getName() + "_" + eClass.getName() + "_" + name;
                     String fileName = database.getId(resource.getURI());
-                    byte[] refsBytes = exportExternalRefs(eObject);
+                    byte[] refsBytes = exportExternalReferences(eObject);
                     if (refsBytes != null) {
                         ZipEntry refsEntry = new ZipEntry(fileName + REFS);
                         zipOutputStream.putNextEntry(refsEntry);
@@ -232,16 +189,18 @@ public class Exporter {
                         ++entityCount;
                     }
                     else if (zipEntry.getName().endsWith(REFS)) {
-                        importExternalRefs(outputStream.toByteArray(), tx);
+                        importExternalReferences(outputStream.toByteArray(), tx);
                     }
                 }
                 zipEntry = zipInputStream.getNextEntry();
             }
+        } catch (Exception e) {
+            throw new IOException(e);
         }
         return entityCount;
     }
 
-    public void unzip(Path zipFile, Transaction tx) throws IOException {
+    public void unzip(Path zipFile, Transaction tx) throws Exception {
         Map<String, Object> env = new HashMap<>();
         //env.put("create", "true");
         env.put("useTempFile", Boolean.TRUE);
@@ -265,7 +224,7 @@ public class Exporter {
         }
     }
 
-    public void importPath(Path path, Transaction tx) throws IOException {
+    public void importPath(Path path, Transaction tx) throws Exception {
         List<Path> xmiPaths = Files.walk(path).filter(Files::isRegularFile).filter(file -> file.getFileName().toString().endsWith(XMI)).collect(Collectors.toList());
         for (Path xmiPath : xmiPaths) {
             byte[] content = Files.readAllBytes(xmiPath);
@@ -274,7 +233,7 @@ public class Exporter {
         List<Path> refsPaths = Files.walk(path).filter(Files::isRegularFile).filter(file -> file.getFileName().toString().endsWith(REFS)).collect(Collectors.toList());
         for (Path refsPath : refsPaths) {
             byte[] content = Files.readAllBytes(refsPath);
-            importExternalRefs(content, tx);
+            importExternalReferences(content, tx);
         }
     }
 
@@ -298,39 +257,131 @@ public class Exporter {
         return eObject;
     }
 
-    public EObject importExternalRefs(byte[] refs, Transaction tx) throws IOException {
-        ObjectNode objectNode = (ObjectNode) new ObjectMapper().readTree(refs);
-        EObject eObject = treeToObject(objectNode, tx);
-        unsetExternalReferences(eObject);
-        ArrayNode externalReferences = objectNode.withArray(EXTERNAL_REFERENCES);
-        for (JsonNode externalReference: externalReferences) {
-            EObject refObject = treeToObject(externalReference.get(REF_OBJECT), tx);
-            for (JsonNode feature: externalReference.withArray(FEATURES)) {
-                String fragment = feature.get(FRAGMENT).textValue();
-                EObject referenceeObject = fragment == null || fragment.length() == 0 ? eObject : EcoreUtil.getEObject(eObject, fragment);
-                String name = feature.get(NAME).textValue();
-                EReference eReference = (EReference) referenceeObject.eClass().getEStructuralFeature(name);
-                if (eReference == null || eReference.isContainment()) {
-                    throw new RuntimeException("Non-contained EReference " + feature + " not found in object " + referenceeObject);
-                }
-                if (eReference.isMany()) {
-                    EList eList = (EList) referenceeObject.eGet(eReference);
-                    eList.add(refObject);
-                }
-                else {
-                    referenceeObject.eSet(eReference, refObject);
-                }
-            }
-        }
-        eObject.eResource().save(null);
-        return eObject;
-    }
-
     public String eClass2String(EClass eClass) {
         return EcoreUtil.getURI(eClass).toString();
     }
 
     public EClass string2EClass(String uri) {
         return (EClass) database.createResourceSet(null).getEObject(URI.createURI(uri), false);
+    }
+
+
+    private static class Setting {
+        EObject referenceeObject;
+        EReference eReference;
+        EObject refObject;
+        int index;
+    }
+    protected EObject elementToObject(Element element, Transaction tx) throws Exception {
+        ResourceSet rs = tx.getDatabase().createResourceSet(tx);
+        String classUri = element.getAttribute("e-class");
+        EClass eClass = (EClass) rs.getEObject(URI.createURI(classUri), false);
+        String qName = element.getAttribute("q-name");
+        String fragment = element.getAttribute("fragment");
+        List<EObject> eObjects = tx.getDatabase().findByEClass(eClass, qName, tx)
+                .getResources().stream()
+                .flatMap(r -> r.getContents().stream())
+                .map(eObject -> fragment.length() == 0 ? eObject : EcoreUtil.getEObject(eObject, fragment))
+                .filter(eObject -> eObject != null)
+                .collect(Collectors.toList());
+        if (eObjects.size() == 0) {
+            throw new IllegalArgumentException(String.format("EObject not found: %s[%s/$s]",
+                    classUri, qName, fragment));
+        }
+        return eObjects.get(0);
+    }
+
+    private EObject importExternalReferences(byte[] bytes, Transaction tx) throws Exception {
+        DocumentBuilderFactory builderFactory = DocumentBuilderFactory.newInstance();
+        DocumentBuilder documentBuilder = builderFactory.newDocumentBuilder();
+        ByteArrayInputStream stream = new ByteArrayInputStream(bytes);
+        Document document = documentBuilder.parse(stream);
+        Element rootElement = document.getDocumentElement();
+        EObject eObject = elementToObject(rootElement, tx);
+        unsetExternalReferences(eObject);
+        List<Setting> settings = new ArrayList<>();
+        NodeList refObjectNodes = rootElement.getElementsByTagName("ref-object");
+        for (int i = 0; i < refObjectNodes.getLength(); ++i) {
+            Element refObjectNode = (Element) refObjectNodes.item(i);
+            EObject refObject = elementToObject(refObjectNode, tx);
+            NodeList refNodes = refObjectNode.getElementsByTagName("reference");
+            for (int j = 0; j < refNodes.getLength(); ++j) {
+                Element refNode = (Element) refNodes.item(j);
+                Setting setting = new Setting();
+                setting.refObject = refObject;
+                String fragment = refNode.getAttribute("fragment");
+                setting.referenceeObject = fragment == null || fragment.length() == 0 ? eObject : EcoreUtil.getEObject(eObject, fragment);
+                String feature = refNode.getAttribute("feature");
+                setting.eReference = (EReference) setting.referenceeObject.eClass().getEStructuralFeature(feature);
+                int index = Integer.parseInt(refNode.getAttribute("index"));
+                setting.index = index;
+                settings.add(setting);
+            }
+        }
+        settings.sort(Comparator.comparing(s -> s.index));
+        for (Setting setting : settings) {
+            if (setting.eReference.isMany()) {
+                EList eList = (EList) setting.referenceeObject.eGet(setting.eReference);
+                eList.add(setting.index >= 0 ? setting.index : eList.size(), setting.refObject);
+            } else {
+                setting.referenceeObject.eSet(setting.eReference, setting.refObject);
+            }
+        }
+        eObject.eResource().save(null);
+        return eObject;
+    }
+
+    public Element objectToElement(Document document, EObject eObject, String tag) {
+        Element element = document.createElement(tag);
+        EObject rootContainer = EcoreUtil.getRootContainer(eObject);
+        String fragment = EcoreUtil.getRelativeURIFragmentPath(rootContainer, eObject);
+        String qName = (String) rootContainer.eGet(database.checkAndGetQNameFeature(rootContainer.eClass()));
+        element.setAttribute("e-class", EcoreUtil.getURI(rootContainer.eClass()).toString());
+        element.setAttribute("q-name", qName);
+        element.setAttribute("fragment", fragment);
+        return element;
+    }
+
+    public byte[] exportExternalReferences(EObject eObject) throws ParserConfigurationException, TransformerException {
+        Map<EObject, Collection<EStructuralFeature.Setting>> crs = EcoreUtil.ExternalCrossReferencer.find(Collections.singleton(eObject));
+        if (crs.size() == 0) {
+            return null;
+        }
+        DocumentBuilderFactory builderFactory = DocumentBuilderFactory.newInstance();
+        DocumentBuilder documentBuilder = builderFactory.newDocumentBuilder();
+        Document document = documentBuilder.newDocument();
+        Element rootElement = objectToElement(document, eObject, "e-object");
+        document.appendChild(rootElement);
+        for (EObject refObject : crs.keySet()) {
+            Element referenceObjectElement = objectToElement(document, refObject, "ref-object");
+            rootElement.appendChild(referenceObjectElement);
+            for (EStructuralFeature.Setting setting : crs.get(refObject)) {
+                Element referenceElement = document.createElement("reference");
+                referenceObjectElement.appendChild(referenceElement);
+                referenceElement.setAttribute("feature", setting.getEStructuralFeature().getName());
+                EObject child = setting.getEObject();
+                String fragment = EcoreUtil.getRelativeURIFragmentPath(eObject, child);
+                referenceElement.setAttribute("fragment", fragment);
+                EStructuralFeature sf = setting.getEStructuralFeature();
+                int index = -1;
+                if (sf.isMany()) {
+                    EList eList = (EList) child.eGet(sf);
+                    index = eList.indexOf(refObject);
+                }
+                referenceElement.setAttribute("index", String.valueOf(index));
+            }
+        }
+        TransformerFactory transformerFactory = TransformerFactory.newInstance();
+        transformerFactory.setAttribute("indent-number", 2);
+        transformerFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+        transformerFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
+        Transformer transformer = transformerFactory.newTransformer();
+        transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+        transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
+        DOMSource source = new DOMSource(document);
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        StreamResult result = new StreamResult(stream);
+        transformer.transform(source, result);
+        return stream.toByteArray();
     }
 }
