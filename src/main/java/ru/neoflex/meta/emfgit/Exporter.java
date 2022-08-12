@@ -111,7 +111,7 @@ public class Exporter {
 
     public void exportEObject(EObject eObject, Path path) throws IOException {
         EClass eClass = eObject.eClass();
-        EPackage ePackage = eClass.getEPackage();
+//        EPackage ePackage = eClass.getEPackage();
         EStructuralFeature nameAttribute = database.getQNameFeature(eClass);
         if (nameAttribute != null) {
             String name = (String) eObject.eGet(nameAttribute);

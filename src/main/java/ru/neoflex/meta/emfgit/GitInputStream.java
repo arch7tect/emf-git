@@ -33,9 +33,7 @@ public class GitInputStream extends InputStream implements URIConverter.Loadable
         String id = db.checkAndGetId(uri);
         EntityId entityId = new EntityId(id);
         Entity entity = transaction.load(entityId);
-        if (!resource.getContents().isEmpty()) {
-            resource.getContents().clear();
-        }
+        resource.unload();
         ((XMIResourceImpl) resource).doLoad(new ByteArrayInputStream(entity.getContent()), options);
         long rev = entity.getRev();
         resource.setTimeStamp(rev);
