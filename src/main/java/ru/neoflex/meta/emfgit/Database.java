@@ -237,10 +237,8 @@ public class Database implements Closeable {
         return uri;
     }
 
-    public ResourceSet createResourceSet() {
+    public ResourceSet createResourceSet(Transaction tx) {
         ResourceSet resourceSet = new ResourceSetImpl();
-        resourceSet.getPackageRegistry()
-                .put(EcorePackage.eNS_URI, EcorePackage.eINSTANCE);
         resourceSet.setPackageRegistry(getPackageRegistry());
         resourceSet.getResourceFactoryRegistry()
                 .getExtensionToFactoryMap()
@@ -262,11 +260,6 @@ public class Database implements Closeable {
                         return resource;
                     }
                 });
-        return resourceSet;
-    }
-
-    public ResourceSet createResourceSet(Transaction tx) {
-        ResourceSet resourceSet = createResourceSet();
         resourceSet.getURIConverter()
                 .getURIHandlers()
                 .add(0, new GitHandler(tx));

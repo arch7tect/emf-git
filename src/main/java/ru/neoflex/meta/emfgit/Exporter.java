@@ -72,7 +72,7 @@ public class Exporter {
     }
 
     public byte[] exportEObjectWithoutExternalRefs(EObject eObject) throws IOException {
-        ResourceSet resourceSet = database.createResourceSet();
+        ResourceSet resourceSet = database.createResourceSet(null);
         Resource resource = resourceSet.createResource(eObject.eResource().getURI());
         EObject copyObject = EcoreUtil.copy(eObject);
         resource.getContents().add(copyObject);
@@ -331,6 +331,6 @@ public class Exporter {
     }
 
     public EClass string2EClass(String uri) {
-        return (EClass) database.createResourceSet().getEObject(URI.createURI(uri), false);
+        return (EClass) database.createResourceSet(null).getEObject(URI.createURI(uri), false);
     }
 }
