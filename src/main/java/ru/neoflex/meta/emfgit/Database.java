@@ -8,6 +8,7 @@ import com.beijunyi.parallelgit.utils.exceptions.RefUpdateLockFailureException;
 import com.beijunyi.parallelgit.utils.exceptions.RefUpdateRejectedException;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.*;
+import org.eclipse.emf.ecore.impl.EPackageRegistryImpl;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.ResourceSet;
 import org.eclipse.emf.ecore.resource.impl.ResourceSetImpl;
@@ -48,7 +49,8 @@ public class Database implements Closeable {
     public static final String QNAME = "name";
     public static final String GITDB = "gitdb";
     private final Repository repository;
-    private List<EPackage> packages;
+
+    private final EPackage.Registry packageRegistry = new EPackageRegistryImpl(EPackage.Registry.INSTANCE);
     private Map<String, Index> indexes = new HashMap<>();
     private Events events = new Events();
     private ReadWriteLock lock = new ReentrantReadWriteLock();
@@ -68,7 +70,9 @@ public class Database implements Closeable {
     public Database(String repoPath, List<EPackage> packages) throws IOException, GitAPIException {
         this.repoName = new File(repoPath).getName();
         this.repository = openRepository(repoPath);
-        this.packages = packages;
+        for (EPackage ePackage: packages) {
+            getPackageRegistry().put(ePackage.getNsURI(), ePackage);
+        }
         preCalcDescendants();
         createTypeNameIndex();
         createRefIndex();
@@ -76,7 +80,8 @@ public class Database implements Closeable {
     }
 
     private void preCalcDescendants() {
-        for (EPackage ePackage : this.packages) {
+        for (Object value: this.getPackageRegistry().values()) {
+            EPackage ePackage = (EPackage) value;
             for (EClassifier eClassifier : ePackage.getEClassifiers()) {
                 if (eClassifier instanceof EClass) {
                     EClass eClass = (EClass) eClassifier;
@@ -236,10 +241,7 @@ public class Database implements Closeable {
         ResourceSet resourceSet = new ResourceSetImpl();
         resourceSet.getPackageRegistry()
                 .put(EcorePackage.eNS_URI, EcorePackage.eINSTANCE);
-        for (EPackage ePackage : packages) {
-            resourceSet.getPackageRegistry()
-                    .put(ePackage.getNsURI(), ePackage);
-        }
+        resourceSet.setPackageRegistry(getPackageRegistry());
         resourceSet.getResourceFactoryRegistry()
                 .getExtensionToFactoryMap()
                 .put("*", new XMIResourceFactoryImpl() {
@@ -414,10 +416,6 @@ public class Database implements Closeable {
         return loadResource(resourceSet, id);
     }
 
-    public List<EPackage> getPackages() {
-        return packages;
-    }
-
     private void checkDependencies(Resource old, Transaction tx) throws IOException {
         String id = getId(old.getURI());
         List<IndexEntry> refList = findByIndex(tx, "ref", id.split("/"));
@@ -562,6 +560,10 @@ public class Database implements Closeable {
 
     public <R> R inTransaction(String branch, Transaction.LockType lockType, Transactional<R> f) throws Exception {
         return inTransaction(() -> createTransaction(branch, lockType), f);
+    }
+
+    public EPackage.Registry getPackageRegistry() {
+        return packageRegistry;
     }
 
     public interface TxSupplier<T> {
