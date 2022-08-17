@@ -29,6 +29,7 @@ public class DatabaseTests extends TestBase {
     public void createEMFObject() throws IOException, GitAPIException {
         String userId;
         String groupId;
+        String companyId = "data/company";
         Group group = TestFactory.eINSTANCE.createGroup();
         try (Transaction tx = database.createTransaction("users")) {
             ResourceSet resourceSet = database.createResourceSet(tx);
@@ -37,7 +38,7 @@ public class DatabaseTests extends TestBase {
             Department system = TestFactory.eINSTANCE.createDepartment();
             system.setName("System");
             neoflex.getDepartments().add(system);
-            Resource companyResource = resourceSet.createResource(database.createURI("data/company"));
+            Resource companyResource = resourceSet.createResource(database.createURI(companyId));
             companyResource.getContents().add(neoflex);
             companyResource.save(null);
             group.setName("masters");
@@ -99,6 +100,20 @@ public class DatabaseTests extends TestBase {
             }
             catch (IOException e) {
                 Assert.assertTrue(e.getMessage().startsWith("Object "));
+            }
+        }
+        try (Transaction tx = database.createTransaction("users")){
+            ResourceSet resourceSet = database.createResourceSet(tx);
+            Resource companyResource = resourceSet.createResource(database.createURI(companyId));
+            companyResource.load(null);
+            Company company = (Company) companyResource.getContents().get(0);
+            company.getDepartments().clear();
+            try {
+                companyResource.save(null);
+                Assert.assertTrue(false);
+            }
+            catch (IllegalArgumentException e) {
+                Assert.assertTrue(true);
             }
         }
         try (Transaction tx = database.createTransaction("users")) {

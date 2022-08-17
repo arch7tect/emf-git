@@ -107,6 +107,7 @@ public class Database implements Closeable {
 
     private void registerEvents() {
         events.registerBeforeSave(this::checkUniqueQName);
+        events.registerBeforeSave(this::checkInternalRefs);
         events.registerAfterSave(this::updateResourceIndexes);
         events.registerBeforeDelete(this::checkDependencies);
         events.registerBeforeDelete(this::deleteResourceIndexes);
@@ -520,6 +521,33 @@ public class Database implements Closeable {
                     }
                 }
             }
+        }
+    }
+
+    private void checkInternalRefs(Resource resourceOld, Resource resource, Transaction tx) throws IOException {
+        if (resourceOld == null || resourceOld.getContents().isEmpty()) {
+            return;
+        }
+        String id = getId(resourceOld.getURI());
+        List<String> errors = getDependentResources(id, tx).stream().flatMap(r -> {
+            Map<EObject, Collection<EStructuralFeature.Setting>> cr = EcoreUtil.ExternalCrossReferencer.find(r);
+            return cr.keySet().stream()
+                    .filter(e -> id.equals(getId(e.eResource().getURI())))
+                    .filter(e -> resource.getEObject(e.eResource().getURIFragment(e)) == null)
+                    .flatMap(e -> {
+                        String fromId = getId(r.getURI());
+                        String toId = getId(resource.getURI());
+                        String toFragment = e.eResource().getURIFragment(e);
+                        return cr.get(e).stream().map(s -> String.format("%s[%s:%s].%s->%s[%s:%s]",
+                                fromId, s.getEObject().eClass().getName(),
+                                r.getURIFragment(s.getEObject()), s.getEStructuralFeature().getName(),
+                                toId, e.eClass().getName(), toFragment));
+                   });
+        }).collect(Collectors.toList());
+        if (errors.size() > 0) {
+            throw new IllegalArgumentException(String.format(
+                    "External references not consistent: %s",
+                    String.join(", ", errors)));
         }
     }
 
