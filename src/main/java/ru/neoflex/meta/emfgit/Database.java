@@ -13,7 +13,6 @@ import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.ResourceSet;
 import org.eclipse.emf.ecore.resource.impl.ResourceSetImpl;
 import org.eclipse.emf.ecore.util.EcoreUtil;
-import org.eclipse.emf.ecore.xmi.XMIResource;
 import org.eclipse.emf.ecore.xmi.XMLParserPool;
 import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
 import org.eclipse.emf.ecore.xmi.impl.XMIResourceImpl;
@@ -29,9 +28,7 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -495,29 +492,27 @@ public class Database implements Closeable {
     }
 
     private void checkUniqueQName(Resource resourceOld, Resource resource, Transaction tx) throws IOException {
-        if (resource.getContents().isEmpty()) {
-            return;
-        }
-        EObject eObject = resource.getContents().get(0);
-        EClass eClass = eObject.eClass();
-        EStructuralFeature sf = getQNameFeature(eClass);
-        if (sf != null) {
-            String name = (String) eObject.eGet(sf);
-            if (resourceOld != null && resourceOld.getContents().size() > 0) {
-                String oldName = (String) resource.getContents().get(0).eGet(sf);
-                if (Objects.equals(oldName, name)) {
-                    return;
+        for (EObject eObject: resource.getContents()) {
+            EClass eClass = eObject.eClass();
+            EStructuralFeature sf = getQNameFeature(eClass);
+            if (sf != null) {
+                String name = (String) eObject.eGet(sf);
+                if (resourceOld != null && resourceOld.getContents().size() > 0) {
+                    String oldName = (String) resource.getContents().get(0).eGet(sf);
+                    if (Objects.equals(oldName, name)) {
+                        return;
+                    }
                 }
-            }
-            String id = resourceOld == null ? null : checkAndGetResourceId(resourceOld);
-            for (EClass descendant : getConcreteDescendants(eClass)) {
-                List<IndexEntry> ieList = findEClassIndexEntries(descendant, name, tx);
-                for (IndexEntry ie : ieList) {
-                    String oldId = new String(ie.getContent());
-                    if (id == null || !id.equals(oldId)) {
-                        throw new IllegalArgumentException(String.format(
-                                "Duplicate qualified name eClass: %s, feature: %s, id: %s",
-                                EcoreUtil.getURI(eClass), name, oldId));
+                String id = resourceOld == null ? null : checkAndGetResourceId(resourceOld);
+                for (EClass descendant : getConcreteDescendants(eClass)) {
+                    List<IndexEntry> ieList = findEClassIndexEntries(descendant, name, tx);
+                    for (IndexEntry ie : ieList) {
+                        String oldId = new String(ie.getContent());
+                        if (id == null || !id.equals(oldId)) {
+                            throw new IllegalArgumentException(String.format(
+                                    "Duplicate qualified name eClass: %s, feature: %s, id: %s",
+                                    EcoreUtil.getURI(eClass), name, oldId));
+                        }
                     }
                 }
             }
